@@ -1,0 +1,15 @@
+[package]
+# Purposed Names: Flex-Ver (Flexible Version)
+name = "semver"
+description = "Semantic Versioning Tool - Allowing CI Projects to automate their versioning process. Additionally providing release notes and changelog generation, lastly providing a release package."
+# Project Versioning will be automated by the tool itself.
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+env_logger = "0.11.3"
+git2 = "0.18.3"
+log = "0.4.21"
+serde = { version = "1.0.203", features = ["derive"] }
+serde_json = "1.0.117"
