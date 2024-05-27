@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs::File, io};
 
 use clap::Parser;
 use git2::{Oid, Tag};
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 
 mod lib;
 
@@ -147,21 +147,46 @@ fn main() {
     // Get all Commits
     let mut revwalk = repository.revwalk().unwrap();
     revwalk.push_head().unwrap();
-    let commits: Vec<git2::Commit> = revwalk
+    let mut commits: Vec<git2::Commit> = revwalk
         .map(|id| repository.find_commit(id.unwrap()).unwrap())
         .collect();
+
+    commits.reverse();
+
+    // Cleanup commits that are within a tag.
+    {
+        let last_commit_index = {
+            let mut commit_tag_index = 0;
+            let mut index = 0;
+            for commit in commits.iter() 
+            {
+                if commit_tags.contains_key(&commit.id()) 
+                {
+                    commit_tag_index = index + 1;
+                }
+                index += 1;
+            }
+            commit_tag_index
+        };
+        commits = commits[last_commit_index..].to_vec();
+    }
 
     info!("Commits: {}", commits.len());
 
     // Store Data about the current Version Release.
     let mut releases = Vec::<Release>::new();
     let mut current_release: Option<Release> = None;
+    let mut release_version = version.clone();
+    let mut release_majors = Vec::<String>::new();
+    let mut release_minors = Vec::<String>::new();
+    let mut release_patches = Vec::<String>::new();
+    let mut release_contributors = Vec::<ReleaseContributor>::new();
 
     // Parse each commit and fill out information that is needed.
     for commit in commits.iter() 
     {
-        let mut should_release = args.release && commits.first().unwrap().id() == commit.id();
-        let mut should_prerelease = args.prerelease && commits.first().unwrap().id() == commit.id();
+        let mut should_release = args.release && commits.last().unwrap().id() == commit.id();
+        let mut should_prerelease = args.prerelease && commits.last().unwrap().id() == commit.id();
 
         let commit_id = commit.id();
         let commit_message = commit.message().unwrap();
@@ -221,6 +246,26 @@ fn main() {
             should_prerelease = true;
         }
 
+        // Place Commit Messages into the correct array.
+        match commit_type 
+        {
+            CommitType::MAJOR => release_majors.push(commit_message.to_string()),
+            CommitType::MINOR => release_minors.push(commit_message.to_string()),
+            CommitType::PATCH => release_patches.push(commit_message.to_string()),
+        }
+
+        // Add the author to the contributors list, only if they are not already in the list.
+        if !release_contributors.iter().any(|x| x.email.contains(commit_author.email().unwrap())) 
+        {
+            let copy_author = git2::Signature::now(commit.author().name().unwrap(), commit.author().email().unwrap()).unwrap();
+            release_contributors.push(ReleaseContributor { name: copy_author.name().unwrap().to_string(), email: copy_author.email().unwrap().to_string() });    
+        }
+        
+        if should_release || should_prerelease
+        {
+            release_version.increment(&commit_type);
+        }
+
         // We detected a new release, so we need to create a new release.
         if should_release || should_prerelease
         {
@@ -234,43 +279,27 @@ fn main() {
             let release = Release { 
                 commit: commit_id,
                 release: should_release, 
-                version: version.clone(), 
-                majors: Vec::new(), 
-                minors: Vec::new(), 
-                patches: Vec::new(), 
-                contributors: Vec::new() 
+                version: release_version.clone(), 
+                majors: release_majors.clone(), 
+                minors: release_minors.clone(), 
+                patches: release_patches.clone(), 
+                contributors: release_contributors.clone() 
             };
+
+            // Reset the release data.
+            release_majors.clear();
+            release_minors.clear();
+            release_patches.clear();
+            release_contributors.clear();
+            
             current_release = Some(release);
         }
-
-        
-        // Push information about this commit into the current release.
-        if let Some(release) = current_release.as_mut() 
-        {
-            // Place Commit Messages into the correct array.
-            match commit_type 
-            {
-                CommitType::MAJOR => release.majors.push(commit_message.to_string()),
-                CommitType::MINOR => release.minors.push(commit_message.to_string()),
-                CommitType::PATCH => release.patches.push(commit_message.to_string()),
-            }
-
-            release.version.increment(&commit_type);
-
-            // Add the author to the contributors list, only if they are not already in the list.
-            if !release.contributors.iter().any(|x| x.email.contains(commit_author.email().unwrap())) 
-            {
-                let copy_author = git2::Signature::now(commit.author().name().unwrap(), commit.author().email().unwrap()).unwrap();
-                release.contributors.push(ReleaseContributor { name: copy_author.name().unwrap().to_string(), email: copy_author.email().unwrap().to_string() });    
-            }
-        }
-
 
         info!(
             "Commit: [{:?}] {}{}{} - {} - {}",
             commit_type, 
             if tag.is_some() { format!("[TAGGED: {}] ", tag.unwrap().name().unwrap()) } else { "".to_string() }, 
-            if should_release { format!("[RELEASE: {}] ", version.to_string()) } else if should_prerelease { format!("[PRE-RELEASE {}] ", version.to_string()) } else { "".to_string() }, 
+            if should_release || should_prerelease { format!("[TAGGING] ") } else { "".to_string() }, 
             commit_id, 
             commit_author.name().unwrap(), 
             commit_message
@@ -291,11 +320,8 @@ fn main() {
         let commit = repository.find_commit(release.commit).unwrap();
         let commit_author = commit.author();
 
-        // Increment the version
-        version.increment(&CommitType::MAJOR);
-        
         // Tag the commit
-        let tag_name = version.to_string();
+        let tag_name = release.version.to_string();
         // Build the tag message
         let mut tag_message = String::new();
         {
@@ -345,7 +371,7 @@ fn main() {
             tag_message.push_str("Generated by: Flex-Vers");
         }
 
-        info!("Message: {}", tag_message.as_str());
+        debug!("Message:\n{}", tag_message.as_str());
         
         if !args.dry_run
         {
@@ -353,10 +379,10 @@ fn main() {
             let tag = repository.find_tag(tag_oid).unwrap();
             commit_tags.insert(release.commit, tag);
 
-            info!("Tagged: {}", tag_name.as_str());
+            info!("Tagged: {} for {}", tag_name.as_str(), commit.id());
         }
         else {
-            info!("Dry Run: Tagging: {}", tag_name.as_str());
+            info!("Dry Run: Tagging: {} for {}", tag_name.as_str(), commit.id());
         }
     }
 }

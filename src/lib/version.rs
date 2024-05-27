@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 
 #[derive(serde::Deserialize, Debug)]
 pub enum CommitType
@@ -32,37 +34,10 @@ impl SemanticVersion
     {
         match commit_type
         {
-            CommitType::MAJOR => self.major += 1,
-            CommitType::MINOR => self.minor += 1,
+            CommitType::MAJOR => { self.major += 1; self.minor = 0; self.patch = 0; },
+            CommitType::MINOR => { self.minor += 1; self.patch = 0; },
             CommitType::PATCH => self.patch += 1,
         }
-    }
-    // Decrement
-    pub fn decrement(&mut self, commit_type: &CommitType)
-    {
-        match commit_type
-        {
-            CommitType::MAJOR => self.major -= 1,
-            CommitType::MINOR => self.minor -= 1,
-            CommitType::PATCH => self.patch -= 1,
-        }
-    }
-
-    // ToString
-    pub fn to_string(&self) -> String
-    {
-        let mut version = format!("{}.{}.{}", self.major, self.minor, self.patch);
-        // [prefix-]x.x.x
-        if let Some(prefix) = &self.prefix
-        {
-            version = format!("{}-{}", prefix, version);
-        }
-        // [prefix-]x.x.x[-suffix]
-        if let Some(suffix) = &self.suffix
-        {
-            version = format!("{}-{}", version, suffix);
-        }
-        version
     }
 
     // Parse
@@ -93,5 +68,23 @@ impl SemanticVersion
         let suffix = if parts.len() > 2 { Some(parts[2].to_string()) } else { None };
         
         SemanticVersion { major, minor, patch, prefix, suffix }
+    }
+}
+
+impl Display for SemanticVersion
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut version = format!("{}.{}.{}", self.major, self.minor, self.patch);
+        // [prefix-]x.x.x
+        if let Some(prefix) = &self.prefix
+        {
+            version = format!("{}-{}", prefix, version);
+        }
+        // [prefix-]x.x.x[-suffix]
+        if let Some(suffix) = &self.suffix
+        {
+            version = format!("{}-{}", version, suffix);
+        }
+        write!(f, "{}", version)
     }
 }
