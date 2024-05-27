@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Deserialize, Debug, PartialEq, Eq)]
 pub enum CommitType
 {
     MAJOR,

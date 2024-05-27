@@ -103,10 +103,34 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
         }
 
         // First word of the commit message
-        let first_word = commit_message.split_whitespace().next().unwrap();
-
+        let regex_str = regex::Regex::new(r#"^([a-zA-Z]+\s*)+(\([a-zA-Z]+\)|)(!?):"#).unwrap();
         // Check if the commit message follows the format.
-        let follows_format: bool = regex::Regex::new(r#"^([a-zA-Z]+\s*)+(\([a-zA-Z]+\)|):"#).unwrap().is_match(first_word);
+        let captures = regex_str.captures(commit_message);
+        
+        let is_major;
+        let follows_format: bool;
+        let first_word;
+        if let Some(captures) = captures
+        {
+            
+            first_word = captures.get(0).unwrap().as_str();
+            follows_format = true;
+
+            if captures.len() > 3 && captures.get(3).unwrap().as_str() == "!"
+            {
+                is_major = true;
+            }
+            else
+            {
+                is_major = false;
+            }
+        }
+        else
+        {
+            first_word = commit_message.split_whitespace().next().unwrap();
+            follows_format = false;
+            is_major = false;
+        }
 
         // Check if the first word is in the map
         let mut skip = false;
@@ -160,8 +184,13 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             continue;
         }
 
+        if is_major
+        {
+            commit_type = CommitType::MAJOR;
+        }
+
         // Trigger Release.
-        if semver_data.commits.release.iter().any(|x| first_word.contains(format!("({})", x).as_str()))
+        if semver_data.commits.release.iter().any(|x| first_word.contains(format!("({})", x).as_str())) || commit_type == CommitType::MAJOR
         {
             should_release = true;
         }
