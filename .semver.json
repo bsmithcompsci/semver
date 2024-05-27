@@ -1,0 +1,82 @@
+{
+    "tagging": {
+        "patterns": "{MAJOR}.{MINOR}.{PATCH}",
+        "supported_repositories": {
+            "github": {
+                "enabled": true,
+                "token_env": "GITHUB_TOKEN"
+            },
+            "gitlab": {
+                "enabled": true,
+                "token_env": "GITLAB_TOKEN"
+            },
+            "bitbucket": {
+                "enabled": true,
+                "token_env": "BITBUCKET_TOKEN"
+            },
+            "gitea": {
+                "enabled": true,
+                "token_env": "GITEA_TOKEN"
+            }
+        }
+    },
+    "branches": [
+        {
+            "name": "master",
+            "increment": [
+                "MAJOR"
+            ]
+        },
+        {
+            "name": "develop",
+            "prerelease": true
+        },
+        {
+            "name": "feature/*",
+            "prerelease": true,
+            "increment": [
+                "MINOR"
+            ]
+        },
+        {
+            "name": "release/*"
+        },
+        {
+            "name": "fix/*",
+            "prerelease": true,
+            "increment": [
+                "PATCH"
+            ]
+        }
+    ],
+    "commits": {
+        "default": "PATCH",
+        "caseSensitive": false,
+        "map": {
+            "MAJOR": [
+                "BREAKING CHANGE",
+                "major"
+            ],
+            "MINOR": [
+                "feature",
+                "feat",
+                "minor"
+            ],
+            "PATCH": [
+                "refactor",
+                "perf",
+                "fix",
+                "docs",
+                "patch",
+                "chore",
+                "revert",
+                "style",
+                "test",
+                "build",
+                "ci",
+                "deps",
+                "security"
+            ]
+        } 
+    }
+}
