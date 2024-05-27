@@ -1,4 +1,4 @@
-use crate::libs::release::Release;
+use crate::libs::release::{Release, ReleaseType};
 
 use log::{debug, error, info};
 
@@ -54,7 +54,7 @@ pub async fn create(args: crate::Args, release: &Release, tag_oid: &git2::Oid, r
             .name(version.as_str())
             .body(tag.message().unwrap())
             .draft(false)
-            .prerelease(!release.release)
+            .prerelease(release.tag == ReleaseType::PreRelease)
             .target_commitish(commit.id().to_string().as_str())
             .send().await;
     

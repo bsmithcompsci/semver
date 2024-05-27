@@ -204,8 +204,8 @@ async fn main() {
                         if args.exit_on_error
                         {
                             std::process::exit(1);
+                        }
                     }
-                }
                 }
             }
         }

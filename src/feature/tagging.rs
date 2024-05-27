@@ -1,6 +1,6 @@
 use log::{debug, info, error};
 
-use crate::libs::release::Release;
+use crate::libs::release::{Release, ReleaseType};
 
 pub fn tag(args: crate::Args, release: &Release, commit: &git2::Commit, repository: &git2::Repository) -> Option<git2::Oid>
 {
@@ -13,7 +13,7 @@ pub fn tag(args: crate::Args, release: &Release, commit: &git2::Commit, reposito
     // Build the tag message
     let mut tag_message = String::new();
     {
-        tag_message.push_str(format!("# {} {}", if release.release { "Release" } else { "Pre-Release" }, tag_name).as_str());
+        tag_message.push_str(format!("# {} {}", if release.tag == ReleaseType::Release { "Release" } else { "Pre-Release" }, tag_name).as_str());
         tag_message.push_str("\n\n");
 
         if release.majors.len() > 0 
@@ -66,6 +66,8 @@ pub fn tag(args: crate::Args, release: &Release, commit: &git2::Commit, reposito
         info!("Dry Run: Tagging: {} for {}", tag_name.as_str(), commit.id());
         return Some(git2::Oid::zero())
     }
+
+    debug!("Tagging: {} for {:?}", tag_name.as_str(), commit);
 
     let tag_oid = repository.tag(tag_name.as_str(), &commit.as_object(), &commit_author, tag_message.as_str(), true).unwrap();
 

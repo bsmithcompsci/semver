@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 
-use crate::{libs::{release::{Release, ReleaseContributor}, version::{CommitType, SemanticVersion}}, SemverData};
+use crate::{libs::{release::{Release, ReleaseContributor, ReleaseType}, version::{CommitType, SemanticVersion}}, SemverData};
 
 pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repository) -> Vec<Release>
 {
@@ -76,8 +76,26 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
     // Parse each commit and fill out information that is needed.
     for commit in commits.iter() 
     {
-        let mut should_release = args.release && commits.last().unwrap().id() == commit.id();
-        let mut should_prerelease = args.prerelease && commits.last().unwrap().id() == commit.id();
+        let mut release_type;
+        if commits.last().unwrap().id() == commit.id()
+        {
+            if args.release
+            {
+                release_type = ReleaseType::Release;
+            }
+            else if args.prerelease
+            {
+                release_type = ReleaseType::PreRelease;
+            }
+            else
+            {
+                release_type = ReleaseType::None;
+            }
+        }
+        else
+        {
+            release_type = ReleaseType::None;
+        }
 
         let commit_id = commit.id();
         let commit_message = commit.message().unwrap();
@@ -192,12 +210,12 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
         // Trigger Release.
         if semver_data.commits.release.iter().any(|x| first_word.contains(format!("({})", x).as_str())) || commit_type == CommitType::MAJOR
         {
-            should_release = true;
+            release_type = ReleaseType::Release;
         }
         // Trigger Prerelease.
         if semver_data.commits.prerelease.iter().any(|x| first_word.contains(format!("({})", x).as_str()))
         {
-            should_prerelease = true;
+            release_type = ReleaseType::PreRelease;
         }
 
         // Place Commit Messages into the correct array.
@@ -206,13 +224,16 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             regex::Regex::new(x.name.as_str()).unwrap().is_match(branch)
         );
 
-        let mut can_increment = should_release || should_prerelease;
+        let mut can_increment = release_type != ReleaseType::None;
         if branch_rules.is_some()
         {
             let branch_rules = branch_rules.unwrap();
-            if branch_rules.prerelease.is_some() && branch_rules.prerelease.unwrap()
+            if can_increment
             {
-                should_prerelease = true;
+                if branch_rules.prerelease.is_some() && branch_rules.prerelease.unwrap()
+                {
+                    release_type = ReleaseType::PreRelease;
+                }
             }
 
             if branch_rules.increment.is_some()
@@ -246,7 +267,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
         }
 
         // We detected a new release, so we need to create a new release.
-        if should_release || should_prerelease
+        if can_increment
         {
             // We need to close the current release.
             if current_release.is_some()
@@ -258,7 +279,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             //  Piece together the release data to catchup.
             let release = Release { 
                 commit: commit_id,
-                release: should_release, 
+                tag: release_type, 
                 version: release_version.clone(), 
                 majors: release_majors.clone(), 
                 minors: release_minors.clone(), 
@@ -272,6 +293,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             release_patches.clear();
             release_contributors.clear();
             
+            debug!("Switching Releases:\n\tOld - {:?}\n\tNew - {:?}", current_release, release.clone());
             current_release = Some(release);
         }
 
@@ -279,7 +301,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             "Commit: [{:?}] {}{}{} - {} - {}",
             commit_type, 
             if tag.is_some() { format!("[TAGGED: {}] ", tag.unwrap().name().unwrap()) } else { "".to_string() }, 
-            if should_release || should_prerelease { format!("[TAGGING] ") } else { "".to_string() }, 
+            if can_increment { format!("[TAGGING] ") } else { "".to_string() }, 
             commit_id, 
             commit_author.name().unwrap(), 
             commit_message
