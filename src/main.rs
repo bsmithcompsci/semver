@@ -1,105 +1,16 @@
-use std::{collections::HashMap, fs::File, hash::Hash, io};
+use std::{collections::HashMap, fs::File, io};
 
 use clap::Parser;
-use git2::{Commit, Oid, Tag, Version};
-use log::{debug, error, info};
+use git2::{Oid, Tag};
+use log::{error, info, warn};
 
-#[derive(serde::Deserialize, Debug)]
-enum CommitType
-{
-    MAJOR,
-    MINOR,
-    PATCH,
-}
+mod lib;
 
-#[derive(serde::Deserialize, Debug)]
-struct SemanticVersion
-{
-    major: u32,
-    minor: u32,
-    patch: u32,
+use lib::version::SemanticVersion;
+use lib::data::*;
 
-    // Prefix & Suffix
-    prefix: Option<String>,
-    suffix: Option<String>,
-}
+use crate::lib::version::CommitType;
 
-impl SemanticVersion
-{
-    // Ctor
-    fn new() -> SemanticVersion
-    {
-        SemanticVersion { major: 1, minor: 0, patch: 0, prefix: None, suffix: None }
-    }
-
-    // Increment
-    fn increment(&mut self, commit_type: &CommitType)
-    {
-        match commit_type
-        {
-            CommitType::MAJOR => self.major += 1,
-            CommitType::MINOR => self.minor += 1,
-            CommitType::PATCH => self.patch += 1,
-        }
-    }
-    // Decrement
-    fn decrement(&mut self, commit_type: &CommitType)
-    {
-        match commit_type
-        {
-            CommitType::MAJOR => self.major -= 1,
-            CommitType::MINOR => self.minor -= 1,
-            CommitType::PATCH => self.patch -= 1,
-        }
-    }
-
-    // ToString
-    fn to_string(&self) -> String
-    {
-        let mut version = format!("{}.{}.{}", self.major, self.minor, self.patch);
-        // [prefix-]x.x.x
-        if let Some(prefix) = &self.prefix
-        {
-            version = format!("{}-{}", prefix, version);
-        }
-        // [prefix-]x.x.x[-suffix]
-        if let Some(suffix) = &self.suffix
-        {
-            version = format!("{}-{}", version, suffix);
-        }
-        version
-    }
-
-    // Parse
-    fn parse(version: &str) -> SemanticVersion
-    {
-        let mut major = 0;
-        let mut minor = 0;
-        let mut patch = 0;
-
-        let parts = version.split('-').collect::<Vec<&str>>();
-        let version_part_index = if parts.len() > 1 { 1 } else { 0 };
-
-        let version_parts = parts[version_part_index].split('.').collect::<Vec<&str>>();
-        if version_parts.len() > 0
-        {
-            major = version_parts[0].parse::<u32>().unwrap();
-        }
-        if version_parts.len() > 1
-        {
-            minor = version_parts[1].parse::<u32>().unwrap();
-        }
-        if version_parts.len() > 2
-        {
-            patch = version_parts[2].parse::<u32>().unwrap();
-        }
-
-        let prefix = if parts.len() > 1 { Some(parts[0].to_string()) } else { None };
-        let suffix = if parts.len() > 2 { Some(parts[2].to_string()) } else { None };
-        
-        SemanticVersion { major, minor, patch, prefix, suffix }
-    }
-}
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -111,44 +22,31 @@ struct Args {
     repository: Option<String>,
 
     #[arg(long, action)]
-    release: bool
+    release: bool,
+    #[arg(long, action)]
+    prerelease: bool,
+
+    #[arg(long, action)]
+    dry_run: bool,
 }
 
-#[derive(serde::Deserialize, Debug)]
-struct SemverDataTaggingRepository
-{
-    enabled: bool,
-    token_env: Option<String>,
-}
-#[derive(serde::Deserialize, Debug)]
-struct SemverDataTagging
-{
-    patterns: String,
-    supported_repositories: HashMap<String, SemverDataTaggingRepository>,
-}
 
-#[derive(serde::Deserialize, Debug)]
-struct SemverDataBranch
+#[derive(Debug, Clone)]
+struct ReleaseContributor
 {
     name: String,
-    prerelease: Option<bool>,
-    increment: Option<Vec<String>>
+    email: String,
 }
-
-#[derive(serde::Deserialize, Debug)]
-struct SemverDataCommits
+#[derive(Debug, Clone)]
+struct Release
 {
-    default: String,
-    caseSensitive: bool,
-    release: String,
-    map: HashMap<String, Vec<String>>
-}
-
-#[derive(serde::Deserialize, Debug)]
-struct SemverData {
-    tagging: SemverDataTagging,
-    branches: Vec<SemverDataBranch>,
-    commits: SemverDataCommits
+    commit:         Oid,  
+    release:        bool,
+    version:        SemanticVersion,
+    majors:         Vec<String>,
+    minors:         Vec<String>,
+    patches:        Vec<String>,
+    contributors:   Vec<ReleaseContributor>,
 }
 
 fn main() {
@@ -255,10 +153,15 @@ fn main() {
 
     info!("Commits: {}", commits.len());
 
-    // Print all commits
+    // Store Data about the current Version Release.
+    let mut releases = Vec::<Release>::new();
+    let mut current_release: Option<Release> = None;
+
+    // Parse each commit and fill out information that is needed.
     for commit in commits.iter() 
     {
-        let mut should_release = args.release;
+        let mut should_release = args.release && commits.first().unwrap().id() == commit.id();
+        let mut should_prerelease = args.prerelease && commits.first().unwrap().id() == commit.id();
 
         let commit_id = commit.id();
         let commit_message = commit.message().unwrap();
@@ -279,6 +182,7 @@ fn main() {
         // Do not continue, if the commit is tagged.
         if tag.is_some() 
         {
+            warn!("Commit: [TAGGED: {}] {} - {} - {}", tag.unwrap().name().unwrap(), commit_id, commit_author.name().unwrap(), commit_message);
             break;
         }
 
@@ -307,27 +211,152 @@ fn main() {
         }
 
         // Trigger Release.
-        if first_word.contains(format!("({})", semver_data.commits.release).as_str()) 
+        if semver_data.commits.release.iter().any(|x| first_word.contains(format!("({})", x).as_str()))
         {
             should_release = true;
         }
-
-        if should_release 
+        // Trigger Prerelease.
+        if semver_data.commits.prerelease.iter().any(|x| first_word.contains(format!("({})", x).as_str()))
         {
-            // Increment the version
-            version.increment(&commit_type);
-            
-            // Tag the commit
-            let tag_name = version.to_string();
-            let tag_message = format!("Release: {}", tag_name);
-            let tag_oid = repository.tag(tag_name.as_str(), &commit.as_object(), &commit_author, tag_message.as_str(), false).unwrap();
-            let tag = repository.find_tag(tag_oid).unwrap();
-            commit_tags.insert(commit_id, tag);
+            should_prerelease = true;
         }
 
+        // We detected a new release, so we need to create a new release.
+        if should_release || should_prerelease
+        {
+            // We need to close the current release.
+            if current_release.is_some()
+            {
+                releases.push(current_release.clone().unwrap());
+            }
+
+            // Create a new release.
+            let release = Release { 
+                commit: commit_id,
+                release: should_release, 
+                version: version.clone(), 
+                majors: Vec::new(), 
+                minors: Vec::new(), 
+                patches: Vec::new(), 
+                contributors: Vec::new() 
+            };
+            current_release = Some(release);
+        }
+
+        
+        // Push information about this commit into the current release.
+        if let Some(release) = current_release.as_mut() 
+        {
+            // Place Commit Messages into the correct array.
+            match commit_type 
+            {
+                CommitType::MAJOR => release.majors.push(commit_message.to_string()),
+                CommitType::MINOR => release.minors.push(commit_message.to_string()),
+                CommitType::PATCH => release.patches.push(commit_message.to_string()),
+            }
+
+            release.version.increment(&commit_type);
+
+            // Add the author to the contributors list, only if they are not already in the list.
+            if !release.contributors.iter().any(|x| x.email.contains(commit_author.email().unwrap())) 
+            {
+                let copy_author = git2::Signature::now(commit.author().name().unwrap(), commit.author().email().unwrap()).unwrap();
+                release.contributors.push(ReleaseContributor { name: copy_author.name().unwrap().to_string(), email: copy_author.email().unwrap().to_string() });    
+            }
+        }
+
+
         info!(
-            "Commit: [{:?}] {}{} - {} - {}",
-            commit_type, if tag.is_some() { format!("[TAGGED: {}] ", tag.unwrap().name().unwrap()) } else { "".to_string() }, commit_id, commit_author.name().unwrap(), commit_message
+            "Commit: [{:?}] {}{}{} - {} - {}",
+            commit_type, 
+            if tag.is_some() { format!("[TAGGED: {}] ", tag.unwrap().name().unwrap()) } else { "".to_string() }, 
+            if should_release { format!("[RELEASE: {}] ", version.to_string()) } else if should_prerelease { format!("[PRE-RELEASE {}] ", version.to_string()) } else { "".to_string() }, 
+            commit_id, 
+            commit_author.name().unwrap(), 
+            commit_message
         );
+    }
+
+    // Close the last release.
+    if current_release.is_some()
+    {
+        releases.push(current_release.clone().unwrap());
+    }
+
+    info!("Releases: {}", releases.len());
+
+    // Tag the commits
+    for release in releases.iter()
+    {
+        let commit = repository.find_commit(release.commit).unwrap();
+        let commit_author = commit.author();
+
+        // Increment the version
+        version.increment(&CommitType::MAJOR);
+        
+        // Tag the commit
+        let tag_name = version.to_string();
+        // Build the tag message
+        let mut tag_message = String::new();
+        {
+            tag_message.push_str(format!("# {} {}", if args.prerelease { "Prerelease" } else { "Release" }, tag_name).as_str());
+            tag_message.push_str("\n\n");
+
+            if release.majors.len() > 0 
+            {
+                tag_message.push_str("## Major Changes:\n");
+                for patch in release.majors.iter() 
+                {
+                    tag_message.push_str(format!("* {}\n", patch).as_str());
+                }
+                tag_message.push_str("\n");
+            }
+
+            if release.minors.len() > 0 
+            {
+                tag_message.push_str("## Minor Changes:\n");
+                for minor in release.minors.iter() 
+                {
+                    tag_message.push_str(format!("* {}\n", minor).as_str());
+                }
+                tag_message.push_str("\n");
+            }
+
+            if release.patches.len() > 0 
+            {
+                tag_message.push_str("## Patch Changes:\n");
+                for major in release.patches.iter() 
+                {
+                    tag_message.push_str(format!("* {}\n", major).as_str());
+                }
+                tag_message.push_str("\n");
+            }
+
+            tag_message.push_str("## Credits:\n");
+            for contributor in release.contributors.iter() 
+            {
+                tag_message.push_str(format!("* {} <{}>\n", contributor.name, contributor.email).as_str());
+            }
+
+            tag_message.push_str("\n");
+
+            tag_message.push_str("---");
+
+            tag_message.push_str("Generated by: Flex-Vers");
+        }
+
+        info!("Message: {}", tag_message.as_str());
+        
+        if !args.dry_run
+        {
+            let tag_oid = repository.tag(tag_name.as_str(), &commit.as_object(), &commit_author, tag_message.as_str(), true).unwrap();
+            let tag = repository.find_tag(tag_oid).unwrap();
+            commit_tags.insert(release.commit, tag);
+
+            info!("Tagged: {}", tag_name.as_str());
+        }
+        else {
+            info!("Dry Run: Tagging: {}", tag_name.as_str());
+        }
     }
 }

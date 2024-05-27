@@ -52,7 +52,8 @@
     "commits": {
         "default": "PATCH",
         "caseSensitive": false,
-        "release": "release",
+        "release": ["release", "build"],
+        "prerelease": ["prerelease", "rc", "beta", "alpha", "dev", "test"],
         "map": {
             "MAJOR": [
                 "BREAKING CHANGE",
