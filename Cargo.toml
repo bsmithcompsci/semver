@@ -1,7 +1,8 @@
 [package]
-# Purposed Names: Flex-Ver (Flexible Version)
-name = "semver"
+name = "flexvers"
 description = "Semantic Versioning Tool - Allowing CI Projects to automate their versioning process. Additionally providing release notes and changelog generation, lastly providing a release package."
+homepage = "https://github.com/bsmithcompsci/semver"
+repository = "https://github.com/bsmithcompsci/semver"
 # Project Versioning will be automated by the tool itself.
 version = "0.1.0"
 edition = "2021"
@@ -11,5 +12,13 @@ clap = { version = "4.5.4", features = ["derive"] }
 env_logger = "0.11.3"
 git2 = "0.18.3"
 log = "0.4.21"
+maplit = "1.0.2"
+octocrab = "0.38.0"
+regex = "1.10.4"
 serde = { version = "1.0.203", features = ["derive"] }
 serde_json = "1.0.117"
+tokio = { version = "1.37.0", features = ["full"] }
+
+[features]
+# Treat warnings as a build error.
+strict = []

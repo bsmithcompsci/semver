@@ -26,7 +26,7 @@ impl SemanticVersion
     // Ctor
     pub fn new() -> SemanticVersion
     {
-        SemanticVersion { major: 1, minor: 0, patch: 0, prefix: None, suffix: None }
+        SemanticVersion { major: 0, minor: 0, patch: 0, prefix: None, suffix: None }
     }
 
     // Increment

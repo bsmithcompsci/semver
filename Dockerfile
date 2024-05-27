@@ -4,6 +4,6 @@ WORKDIR /app
 
 COPY . .
 
-RUN cargo build --release
+RUN cargo build --release --features "strict"
 
 CMD ["./target/release/semver"]

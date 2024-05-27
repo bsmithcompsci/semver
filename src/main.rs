@@ -1,60 +1,77 @@
-use std::{collections::HashMap, fs::File, io};
+#![cfg_attr(feature = "strict", deny(missing_docs))]
+#![cfg_attr(feature = "strict", deny(warnings))]
+use std::{fs::File, io};
 
 use clap::Parser;
-use git2::{Oid, Tag};
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 
-mod lib;
+mod libs;
+mod feature;
 
-use lib::version::SemanticVersion;
-use lib::data::*;
-
-use crate::lib::version::CommitType;
-
+use libs::data::*;
+use maplit::hashmap;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    #[arg(short, long)]
-    json_input: Option<String>,
+    #[arg(short, long, help = "Path to the configuration file. Supports: .json", default_value = ".semver.json")]
+    input_file: Option<String>,
 
-    #[arg(short, long, default_value = ".")]
+    #[arg(short, long, help = "Directory of the targeted repository.", default_value = ".")]
     repository: Option<String>,
 
-    #[arg(long, action)]
+    #[arg(long, help = "Override the repository type: github, gitlab, bitbucket, gitea, etc.")]
+    override_repository_type: Option<String>,
+
+    #[arg(long, action, help = "Force the latest commit to be a release.", default_value = "false")]
     release: bool,
-    #[arg(long, action)]
+    #[arg(long, action, help = "Force the latest commit to be a pre-release", default_value = "false")]
     prerelease: bool,
 
-    #[arg(long, action)]
+    #[arg(long, action, help = "Do not act on anything, but give the outcome if it would.", default_value = "false")]
     dry_run: bool,
+
+    #[arg(long, action, help = "Increments regardless, if there will be a release or not. This will skip versions in tags.", default_value = "false")]
+    always_increment: bool,
+
+    #[arg(long, action, help = "Skip any commits that are not formatted under the https://semver.org/ format rules.", default_value = "false")]
+    skip_non_formatted: bool,
+
+    #[arg(long, action, help = "Exit with an Error Code when encountering any errors.", default_value = "true")]
+    exit_on_error: bool,
+
+    #[arg(short, long, help = "Path to the credentials file. Default will go to your {HOME}/.ssh/Github")]
+    credentials: Option<String>,
 }
 
-
-#[derive(Debug, Clone)]
-struct ReleaseContributor
+impl Clone for Args
 {
-    name: String,
-    email: String,
-}
-#[derive(Debug, Clone)]
-struct Release
-{
-    commit:         Oid,  
-    release:        bool,
-    version:        SemanticVersion,
-    majors:         Vec<String>,
-    minors:         Vec<String>,
-    patches:        Vec<String>,
-    contributors:   Vec<ReleaseContributor>,
+    fn clone(&self) -> Self 
+    {
+        Args 
+        {
+            input_file: self.input_file.clone(),
+            repository: self.repository.clone(),
+            override_repository_type: self.override_repository_type.clone(),
+            release: self.release,
+            prerelease: self.prerelease,
+            dry_run: self.dry_run,
+            always_increment: self.always_increment,
+            skip_non_formatted: self.skip_non_formatted,
+            exit_on_error: self.exit_on_error,
+            credentials: self.credentials.clone(),
+        }
+    }
 }
 
-fn main() {
+
+#[tokio::main]
+async fn main() {
     // Initialize the logger, while in debug mode, log everything; otherwise, log only errors, warnings and info.
     if cfg!(debug_assertions) 
     {
         env_logger::Builder::new()
-            .filter_level(log::LevelFilter::max())
+            .filter_level(log::LevelFilter::Debug)
             .init();
     } 
     else 
@@ -65,10 +82,10 @@ fn main() {
     }
 
     // Parse the command line arguments
-    let args = Args::parse();
+    let mut args = Args::parse();
 
     // Check if the JSON file path is provided
-    let json_file: String = if let Some(json_input) = args.json_input {
+    let json_file: String = if let Some(json_input) = args.input_file.clone() {
         if json_input.is_empty() {
             error!("Json File Path is empty!");
             return;
@@ -82,7 +99,7 @@ fn main() {
     // Check if the file exists.
     if !std::path::Path::new(&json_file).exists() {
         error!("Json File: `{}` does not exist!", json_file);
-        return;
+        std::process::exit(1);
     }
 
     // Parse the JSON file with Serde
@@ -94,12 +111,12 @@ fn main() {
     let semver_data: SemverData = serde_json::from_value(data).unwrap();
     info!("Read Semantic Version Data");
     // Check if the repository is provided
-    let repository_base_path: String = if let Some(repository_base_path) = args.repository 
+    let repository_base_path: String = if let Some(repository_base_path) = args.repository.clone() 
     {
         if repository_base_path.is_empty() 
         {
             error!("Repository is empty!");
-            return;
+            std::process::exit(1);
         }
 
         repository_base_path.clone()
@@ -109,280 +126,129 @@ fn main() {
         String::from(".")
     };
 
+    // Credentials
+    if args.credentials.is_none()
+    {
+        let home = std::env::var("HOME").unwrap_or(std::env::var("USERPROFILE").unwrap_or(".".to_string()));
+        args.credentials = Some(format!("{}/.ssh/Github", home));
+    }
+    
+    if args.credentials.is_some()
+    {
+        std::env::set_var("GIT_SSH_KEY", args.credentials.clone().unwrap());
+
+        debug!("Git Credentials Authenticated: {}", args.credentials.clone().unwrap());
+    }
+
     let repository = git2::Repository::open(repository_base_path).unwrap();
     if repository.is_bare()
     {
         error!("Repository is bare!");
-        return;
+        std::process::exit(1);
     }
 
-    // Get Current Branch
-    let head = repository.head().unwrap();
-    let branch = head.shorthand().unwrap();
-    info!("Selected Branch: {}", branch);
-
-    // Get all Tags
-    let mut commit_tags = HashMap::<Oid, Tag>::new();
-    let tags = repository.tag_names(Some("*")).unwrap();
-    for tag_name in tags.iter() 
-    {
-        let obj = repository.revparse_single(tag_name.unwrap()).unwrap();
-        if let Some(tag) = obj.as_tag() 
-        {
-            // Now lets get the commit for the tag
-            let commit = tag.target().unwrap().peel_to_commit().unwrap();
-            commit_tags.insert(commit.id(), tag.clone());
-        }
-    }
-
-    let mut version = SemanticVersion::new();
-    let latest_tag = commit_tags.iter().next();
-    if let Some((_, tag)) = latest_tag 
-    {
-        let tag_name = tag.name().unwrap();
-        info!("Latest Tag: {}", tag_name);
-        version = SemanticVersion::parse(tag_name);
-    }
-
-    // Get all Commits
-    let mut revwalk = repository.revwalk().unwrap();
-    revwalk.push_head().unwrap();
-    let mut commits: Vec<git2::Commit> = revwalk
-        .map(|id| repository.find_commit(id.unwrap()).unwrap())
-        .collect();
-
-    commits.reverse();
-
-    // Cleanup commits that are within a tag.
-    {
-        let last_commit_index = {
-            let mut commit_tag_index = 0;
-            let mut index = 0;
-            for commit in commits.iter() 
-            {
-                if commit_tags.contains_key(&commit.id()) 
-                {
-                    commit_tag_index = index + 1;
-                }
-                index += 1;
-            }
-            commit_tag_index
-        };
-        commits = commits[last_commit_index..].to_vec();
-    }
-
-    info!("Commits: {}", commits.len());
-
-    // Store Data about the current Version Release.
-    let mut releases = Vec::<Release>::new();
-    let mut current_release: Option<Release> = None;
-    let mut release_version = version.clone();
-    let mut release_majors = Vec::<String>::new();
-    let mut release_minors = Vec::<String>::new();
-    let mut release_patches = Vec::<String>::new();
-    let mut release_contributors = Vec::<ReleaseContributor>::new();
-
-    // Parse each commit and fill out information that is needed.
-    for commit in commits.iter() 
-    {
-        let mut should_release = args.release && commits.last().unwrap().id() == commit.id();
-        let mut should_prerelease = args.prerelease && commits.last().unwrap().id() == commit.id();
-
-        let commit_id = commit.id();
-        let commit_message = commit.message().unwrap();
-        let commit_author = commit.author();
-
-        // Check if the commit is tagged
-        let tag: Option<Tag> = if commit_tags.contains_key(&commit_id) 
-        {
-            let tags = commit_tags.clone();
-            let tag = tags.get(&commit_id).unwrap();
-            Some(tag.clone())
-        } 
-        else 
-        {
-            None
-        };
-
-        // Do not continue, if the commit is tagged.
-        if tag.is_some() 
-        {
-            warn!("Commit: [TAGGED: {}] {} - {} - {}", tag.unwrap().name().unwrap(), commit_id, commit_author.name().unwrap(), commit_message);
-            break;
-        }
-
-        // First word of the commit message
-        let first_word = commit_message.split_whitespace().next().unwrap();
-
-        // Check if the first word is in the map
-        let mut commit_type : CommitType = CommitType::PATCH;
-        for (key, value) in semver_data.commits.map.iter() 
-        {
-            for value in value.iter() 
-            {
-                if (semver_data.commits.caseSensitive && first_word == value) || (!semver_data.commits.caseSensitive && first_word.contains(value)) 
-                {
-                    // Parse the Key to the Commit Type, default is PATCH.
-                    commit_type = match key.to_uppercase().as_str() 
-                    {
-                        "MAJOR" => CommitType::MAJOR,
-                        "MINOR" => CommitType::MINOR,
-                        "PATCH" => CommitType::PATCH,
-                        _ => CommitType::PATCH,
-                    };
-                    break;
-                }
-            }
-        }
-
-        // Trigger Release.
-        if semver_data.commits.release.iter().any(|x| first_word.contains(format!("({})", x).as_str()))
-        {
-            should_release = true;
-        }
-        // Trigger Prerelease.
-        if semver_data.commits.prerelease.iter().any(|x| first_word.contains(format!("({})", x).as_str()))
-        {
-            should_prerelease = true;
-        }
-
-        // Place Commit Messages into the correct array.
-        match commit_type 
-        {
-            CommitType::MAJOR => release_majors.push(commit_message.to_string()),
-            CommitType::MINOR => release_minors.push(commit_message.to_string()),
-            CommitType::PATCH => release_patches.push(commit_message.to_string()),
-        }
-
-        // Add the author to the contributors list, only if they are not already in the list.
-        if !release_contributors.iter().any(|x| x.email.contains(commit_author.email().unwrap())) 
-        {
-            let copy_author = git2::Signature::now(commit.author().name().unwrap(), commit.author().email().unwrap()).unwrap();
-            release_contributors.push(ReleaseContributor { name: copy_author.name().unwrap().to_string(), email: copy_author.email().unwrap().to_string() });    
-        }
-        
-        if should_release || should_prerelease
-        {
-            release_version.increment(&commit_type);
-        }
-
-        // We detected a new release, so we need to create a new release.
-        if should_release || should_prerelease
-        {
-            // We need to close the current release.
-            if current_release.is_some()
-            {
-                releases.push(current_release.clone().unwrap());
-            }
-
-            // Create a new release.
-            let release = Release { 
-                commit: commit_id,
-                release: should_release, 
-                version: release_version.clone(), 
-                majors: release_majors.clone(), 
-                minors: release_minors.clone(), 
-                patches: release_patches.clone(), 
-                contributors: release_contributors.clone() 
-            };
-
-            // Reset the release data.
-            release_majors.clear();
-            release_minors.clear();
-            release_patches.clear();
-            release_contributors.clear();
-            
-            current_release = Some(release);
-        }
-
-        info!(
-            "Commit: [{:?}] {}{}{} - {} - {}",
-            commit_type, 
-            if tag.is_some() { format!("[TAGGED: {}] ", tag.unwrap().name().unwrap()) } else { "".to_string() }, 
-            if should_release || should_prerelease { format!("[TAGGING] ") } else { "".to_string() }, 
-            commit_id, 
-            commit_author.name().unwrap(), 
-            commit_message
-        );
-    }
-
-    // Close the last release.
-    if current_release.is_some()
-    {
-        releases.push(current_release.clone().unwrap());
-    }
+    let releases = feature::retrieval::get(
+        args.clone(), 
+        &semver_data, 
+        &repository
+    );
 
     info!("Releases: {}", releases.len());
+
+    let repository_types = hashmap! {
+        "github.com" => "github",
+        // "gitlab.com" => "gitlab",
+        // "bitbucket.org" => "bitbucket"
+    };
+    
+    // Get Remote Origin URL
+    let remote = repository.find_remote("origin").unwrap();
+    let remote_url = remote.url().unwrap();
+
+    let mut repository_type: Option<String> = None; 
+    for (key, value) in repository_types.iter()
+    {
+        if remote_url.contains(key)
+        {
+            repository_type = Some(value.to_string());
+            break;
+        }
+    };
+
+    if repository_type.is_none()
+    {
+        error!("Repository Type is not supported: {}", remote_url);
+        std::process::exit(1);
+    }
+
+    debug!("Repository Type: {} - {}", repository_type.clone().unwrap(), remote_url);
 
     // Tag the commits
     for release in releases.iter()
     {
         let commit = repository.find_commit(release.commit).unwrap();
-        let commit_author = commit.author();
 
-        // Tag the commit
-        let tag_name = release.version.to_string();
-        // Build the tag message
-        let mut tag_message = String::new();
+        // Tag the release commits.
+        if let Some(tag) = feature::tagging::tag(args.clone(), release, &commit, &repository)
         {
-            tag_message.push_str(format!("# {} {}", if args.prerelease { "Prerelease" } else { "Release" }, tag_name).as_str());
-            tag_message.push_str("\n\n");
-
-            if release.majors.len() > 0 
+            // Publish a release to the appropriate repository.
+            if semver_data.tagging.supported_repositories.contains_key(repository_type.clone().unwrap().as_str())
             {
-                tag_message.push_str("## Major Changes:\n");
-                for patch in release.majors.iter() 
+                let repository_data = semver_data.tagging.supported_repositories.get(repository_type.clone().unwrap().as_str()).unwrap();
+                if repository_data.enabled
                 {
-                    tag_message.push_str(format!("* {}\n", patch).as_str());
+                    if let Err(error) = feature::release::create(args.clone(), repository_type.clone().unwrap().as_str(), release, &tag, &repository).await
+                    {
+                        error!("Failed to create release: {:?}", error);
+                    
+                        if args.exit_on_error
+                        {
+                            std::process::exit(1);
+                    }
                 }
-                tag_message.push_str("\n");
-            }
-
-            if release.minors.len() > 0 
-            {
-                tag_message.push_str("## Minor Changes:\n");
-                for minor in release.minors.iter() 
-                {
-                    tag_message.push_str(format!("* {}\n", minor).as_str());
                 }
-                tag_message.push_str("\n");
             }
-
-            if release.patches.len() > 0 
-            {
-                tag_message.push_str("## Patch Changes:\n");
-                for major in release.patches.iter() 
-                {
-                    tag_message.push_str(format!("* {}\n", major).as_str());
-                }
-                tag_message.push_str("\n");
-            }
-
-            tag_message.push_str("## Credits:\n");
-            for contributor in release.contributors.iter() 
-            {
-                tag_message.push_str(format!("* {} <{}>\n", contributor.name, contributor.email).as_str());
-            }
-
-            tag_message.push_str("\n");
-
-            tag_message.push_str("---");
-
-            tag_message.push_str("Generated by: Flex-Vers");
         }
 
-        debug!("Message:\n{}", tag_message.as_str());
-        
-        if !args.dry_run
-        {
-            let tag_oid = repository.tag(tag_name.as_str(), &commit.as_object(), &commit_author, tag_message.as_str(), true).unwrap();
-            let tag = repository.find_tag(tag_oid).unwrap();
-            commit_tags.insert(release.commit, tag);
+    }
+}
 
-            info!("Tagged: {} for {}", tag_name.as_str(), commit.id());
-        }
-        else {
-            info!("Dry Run: Tagging: {} for {}", tag_name.as_str(), commit.id());
-        }
+pub fn git_credentials_callback(
+    _user: &str,
+    _user_from_url: Option<&str>,
+    _cred: git2::CredentialType,
+) -> Result<git2::Cred, git2::Error> {
+    let user = _user_from_url.unwrap_or("git");
+    
+    debug!("Authenticating with user: [{:?}] {} [{:?}]", _user_from_url, user.to_string(), _cred);
+
+    if _cred.contains(git2::CredentialType::USERNAME) {
+        return git2::Cred::username(user);
+    }
+
+    match std::env::var("GIT_SSH_KEY") {
+        Ok(private_key) => {
+            debug!("Authenticate with user {} and private key located in {}", user, private_key);
+
+            // Check if the public key exists.
+            let public_key = private_key.clone() + ".pub";
+            let public_key_path = if !std::path::Path::new(&public_key).exists() 
+            {
+                Some(std::path::Path::new(&public_key))
+            }
+            else
+            {
+                None
+            };
+
+            // Check if the private key exists.
+            if !std::path::Path::new(&private_key).exists() 
+            {
+                return Err(git2::Error::from_str(format!("GIT_SSH_KEY path does not exist: {}", private_key).as_str()));
+            }
+            
+            git2::Cred::ssh_key(user, public_key_path, std::path::Path::new(&private_key), None)
+        },
+        _ => Err(git2::Error::from_str("unable to get private key from GIT_SSH_KEY")),
     }
 }

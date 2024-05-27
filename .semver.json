@@ -1,22 +1,17 @@
 {
     "tagging": {
-        "patterns": "{MAJOR}.{MINOR}.{PATCH}",
         "supported_repositories": {
             "github": {
-                "enabled": true,
-                "token_env": "GITHUB_TOKEN"
+                "enabled": true
             },
             "gitlab": {
-                "enabled": true,
-                "token_env": "GITLAB_TOKEN"
+                "enabled": true
             },
             "bitbucket": {
-                "enabled": true,
-                "token_env": "BITBUCKET_TOKEN"
+                "enabled": true
             },
             "gitea": {
-                "enabled": true,
-                "token_env": "GITEA_TOKEN"
+                "enabled": true
             }
         }
     },
