@@ -106,7 +106,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
         let first_word = commit_message.split_whitespace().next().unwrap();
 
         // Check if the commit message follows the format.
-        let follows_format: bool = regex::Regex::new(r#"^[a-zA-Z]+(\([a-zA-Z]+\)|):"#).unwrap().is_match(first_word);
+        let follows_format: bool = regex::Regex::new(r#"^([a-zA-Z]+\s*)+(\([a-zA-Z]+\)|):"#).unwrap().is_match(first_word);
 
         // Check if the first word is in the map
         let mut skip = false;
