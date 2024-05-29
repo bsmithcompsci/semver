@@ -29,6 +29,15 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-build-
           ${{ runner.os }}-
+    # Cache the Docker layers to speed up the build
+    - name: Cache Docker layers
+      uses: actions/cache@v3
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-build-${{ hashFiles('**/Dockerfile') }}
+        restore-keys: |
+          ${{ runner.os }}-build-
+          ${{ runner.os }}-
 
     # Linting with Clippy; Clippy is a collection of lints to catch common mistakes and improve your Rust code.
     - name: Clippy
