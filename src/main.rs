@@ -226,12 +226,14 @@ pub fn git_credentials_callback(
         return git2::Cred::username(user);
     }
 
-    match std::env::var("GIT_SSH_KEY") {
-        Ok(private_key) => {
-            debug!("Authenticate with user {} and private key located in {}", user, private_key);
+
+
+    match std::env::var("GIT_SSH_KEY_PATH") {
+        Ok(private_key_path) => {
+            debug!("Authenticate with user {} and private key located in {}", user, private_key_path);
 
             // Check if the public key exists.
-            let public_key = private_key.clone() + ".pub";
+            let public_key = private_key_path.clone() + ".pub";
             let public_key_path = if !std::path::Path::new(&public_key).exists() 
             {
                 Some(std::path::Path::new(&public_key))
@@ -242,13 +244,29 @@ pub fn git_credentials_callback(
             };
 
             // Check if the private key exists.
-            if !std::path::Path::new(&private_key).exists() 
+            if !std::path::Path::new(&private_key_path).exists() 
             {
-                return Err(git2::Error::from_str(format!("GIT_SSH_KEY path does not exist: {}", private_key).as_str()));
+                return Err(git2::Error::from_str(format!("GIT_SSH_KEY path does not exist: {}", private_key_path).as_str()));
             }
             
-            git2::Cred::ssh_key(user, public_key_path, std::path::Path::new(&private_key), None)
+            git2::Cred::ssh_key(user, public_key_path, std::path::Path::new(&private_key_path), None)
         },
-        _ => Err(git2::Error::from_str("unable to get private key from GIT_SSH_KEY")),
+        _ => match std::env::var("GIT_SSH_KEY") {
+            Ok(private_key) => {
+                debug!("Authenticate with user {} and private key in memory", user);
+    
+                // Check if the public key exists.
+                let public_key = std::env::var("GIT_SSH_KEY_PUBLIC");
+                let public_key = match public_key {
+                    Ok(public_key) => Some(public_key),
+                    _ => None,
+                };
+                let public_key = public_key.as_ref().map(|x| x.as_str());
+                
+                git2::Cred::ssh_key_from_memory(user, public_key, &private_key, None)
+            },
+            _ => Err(git2::Error::from_str("unable to get private key from GIT_SSH_KEY")),
+        },
     }
+    
 }
