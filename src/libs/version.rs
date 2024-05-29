@@ -4,9 +4,9 @@ use std::fmt::Display;
 #[derive(serde::Deserialize, Debug, PartialEq, Eq)]
 pub enum CommitType
 {
-    MAJOR,
-    MINOR,
-    PATCH,
+    Major,
+    Minor,
+    Patch,
 }
 
 #[derive(serde::Deserialize, Debug, Clone)]
@@ -46,9 +46,9 @@ impl SemanticVersion
     {
         match commit_type
         {
-            CommitType::MAJOR => { self.major += value; self.minor = 0; self.patch = 0; },
-            CommitType::MINOR => { self.minor += value; self.patch = 0; },
-            CommitType::PATCH => self.patch += value,
+            CommitType::Major => { self.major += value; self.minor = 0; self.patch = 0; },
+            CommitType::Minor => { self.minor += value; self.patch = 0; },
+            CommitType::Patch => self.patch += value,
         }
     }
 
@@ -63,7 +63,7 @@ impl SemanticVersion
         let version_part_index = if parts.len() > 1 { 1 } else { 0 };
 
         let version_parts = parts[version_part_index].split('.').collect::<Vec<&str>>();
-        if version_parts.len() > 0
+        if !version_parts.is_empty()
         {
             major = version_parts[0].parse::<u32>().unwrap();
         }

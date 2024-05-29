@@ -15,11 +15,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # Checkout the repository
     - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
+
+    # Linting with Clippy; Clippy is a collection of lints to catch common mistakes and improve your Rust code.
+    - name: Clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+    # Run tests
     - name: Run tests
       run: cargo test --verbose
+
+    # Build the project and publish it to Dockerhub
     - name: Publish to Dockerhub
       uses: docker/build-push-action@v2
       with:

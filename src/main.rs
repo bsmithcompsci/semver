@@ -250,11 +250,11 @@ pub fn git_credentials_callback(
         //  We handle alias environments for the use to redirect the user and token to the corrent environment variables, 
         //  like GITHUB_USER and GITHUB_TOKEN; which are provided by Github. Since we are not specific for Github, we must use an alias.
         if let Ok(user) = std::env::var("GIT_ALIAS_USER") {
-            std::env::set_var("GIT_USER", std::env::var(user.clone()).expect(format!("Missing Git Alias User output value: {}", user.clone()).as_str()));
+            std::env::set_var("GIT_USER", std::env::var(user.clone()).unwrap_or_else(|_| panic!("Missing Git Alias User output value: {}", user.clone())));
             debug!("GIT_ALIAS_USER was Set: {}", user);
         }
         if let Ok(token) = std::env::var("GIT_ALIAS_TOKEN") {
-            std::env::set_var("GIT_TOKEN", std::env::var(token.clone()).expect(format!("Missing Git Alias Token output value: {}", token.clone()).as_str()));
+            std::env::set_var("GIT_TOKEN", std::env::var(token.clone()).unwrap_or_else(|_| panic!("Missing Git Alias Token output value: {}", token.clone())));
             debug!("GIT_ALIAS_TOKEN was Set: {}", token);
         }
 
@@ -305,7 +305,7 @@ pub fn git_credentials_callback(
                     Ok(public_key) => Some(public_key),
                     _ => None,
                 };
-                let public_key = public_key.as_ref().map(|x| x.as_str());
+                let public_key = public_key.as_deref();
                 
                 git2::Cred::ssh_key_from_memory(user, public_key, &private_key, None)
             },

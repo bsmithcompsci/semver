@@ -23,7 +23,7 @@ pub async fn create(args: crate::Args, release: &Release, tag_oid: &git2::Oid, r
             .expect("Failed to get the remote origin URL.")
             .to_string();
 
-        let (owner, repo) = repository_env.split_once("/").unwrap();
+        let (owner, repo) = repository_env.split_once('/').unwrap();
         let owner = owner.split_once("github.com:").unwrap().1;
         let repo = repo.replace(".git", "");
 
@@ -42,7 +42,7 @@ pub async fn create(args: crate::Args, release: &Release, tag_oid: &git2::Oid, r
         .build()
         .expect("Failed to create Octocrab instance.");
 
-    let (owner, repo) = repository_env.split_once("/")
+    let (owner, repo) = repository_env.split_once('/')
         .expect("Failed to split the repository into owner and repo.");
 
     
@@ -60,7 +60,7 @@ pub async fn create(args: crate::Args, release: &Release, tag_oid: &git2::Oid, r
         return Err("Tag OID is Zero.");
     }
 
-    let tag = repository.find_tag(tag_oid.clone()).expect("Failed to find the tag.");
+    let tag = repository.find_tag(*tag_oid).expect("Failed to find the tag.");
     let commit = repository.find_commit(release.commit).expect("Failed to find the commit.");
     
     let result = octocrab

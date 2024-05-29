@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use log::{debug, error, info, warn};
 
-use crate::{libs::{release::{Release, ReleaseContributor, ReleaseType}, version::{CommitType, SemanticVersion}}, SemverData, SemverDataCommits, SemverDataTagging};
+use crate::{libs::{release::{Release, ReleaseContributor, ReleaseType}, version::{CommitType, SemanticVersion}}, SemverData};
 
 pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repository) -> Vec<Release>
 {
@@ -47,14 +47,12 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
     {
         let last_commit_index = {
             let mut commit_tag_index = 0;
-            let mut index = 0;
-            for commit in commits.iter() 
+            for (index, commit) in commits.iter().enumerate()
             {
                 if commit_tags.contains_key(&commit.id()) 
                 {
-                    commit_tag_index = index + 1;
+                    commit_tag_index = index;
                 }
-                index += 1;
             }
             commit_tag_index
         };
@@ -134,14 +132,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             first_word = captures.get(0).unwrap().as_str();
             follows_format = true;
 
-            if captures.len() > 3 && captures.get(3).unwrap().as_str() == "!"
-            {
-                is_major = true;
-            }
-            else
-            {
-                is_major = false;
-            }
+            is_major = captures.len() > 3 && captures.get(3).unwrap().as_str() == "!";
         }
         else
         {
@@ -152,7 +143,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
 
         // Check if the first word is in the map
         let mut skip = false;
-        let mut commit_type : CommitType = CommitType::PATCH;
+        let mut commit_type : CommitType = CommitType::Patch;
         for (key, value) in semver_data.commits.map.iter() 
         {
             for value in value.iter() 
@@ -162,15 +153,15 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
                     // Parse the Key to the Commit Type, default is PATCH.
                     commit_type = match key.to_uppercase().as_str() 
                     {
-                        "MAJOR" => CommitType::MAJOR,
-                        "MINOR" => CommitType::MINOR,
-                        "PATCH" => CommitType::PATCH,
+                        "MAJOR" => CommitType::Major,
+                        "MINOR" => CommitType::Minor,
+                        "PATCH" => CommitType::Patch,
                         _ => match semver_data.commits.default.to_uppercase().as_str() 
                         {
-                            "MAJOR" => CommitType::MAJOR,
-                            "MINOR" => CommitType::MINOR,
-                            "PATCH" => CommitType::PATCH,
-                            _ => CommitType::PATCH,
+                            "MAJOR" => CommitType::Major,
+                            "MINOR" => CommitType::Minor,
+                            "PATCH" => CommitType::Patch,
+                            _ => CommitType::Patch,
                         }
                     };
                     break;
@@ -204,11 +195,11 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
 
         if is_major
         {
-            commit_type = CommitType::MAJOR;
+            commit_type = CommitType::Major;
         }
 
         // Trigger Release.
-        if semver_data.commits.release.iter().any(|x| first_word.contains(format!("({})", x).as_str())) || commit_type == CommitType::MAJOR
+        if semver_data.commits.release.iter().any(|x| first_word.contains(format!("({})", x).as_str())) || commit_type == CommitType::Major
         {
             release_type = ReleaseType::Release;
         }
@@ -228,12 +219,8 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
         if branch_rules.is_some()
         {
             let branch_rules = branch_rules.unwrap();
-            if can_increment
-            {
-                if branch_rules.prerelease.is_some() && branch_rules.prerelease.unwrap()
-                {
-                    release_type = ReleaseType::PreRelease;
-                }
+            if can_increment && branch_rules.prerelease.is_some() && branch_rules.prerelease.unwrap() {
+                release_type = ReleaseType::PreRelease;
             }
 
             if branch_rules.increment.is_some()
@@ -244,9 +231,9 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
 
         match commit_type 
         {
-            CommitType::MAJOR => release_majors.push(commit_message.to_string()),
-            CommitType::MINOR => release_minors.push(commit_message.to_string()),
-            CommitType::PATCH => release_patches.push(commit_message.to_string()),
+            CommitType::Major => release_majors.push(commit_message.to_string()),
+            CommitType::Minor => release_minors.push(commit_message.to_string()),
+            CommitType::Patch => release_patches.push(commit_message.to_string()),
         }
 
         let bad_emails = ["noreply."];
@@ -301,7 +288,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             "Commit: [{:?}] {}{}{} - {} - {}",
             commit_type, 
             if tag.is_some() { format!("[TAGGED: {}] ", tag.unwrap().name().unwrap()) } else { "".to_string() }, 
-            if can_increment { format!("[TAGGING] ") } else { "".to_string() }, 
+            if can_increment { "[TAGGING] ".to_string() } else { "".to_string() }, 
             commit_id, 
             commit_author.name().unwrap(), 
             commit_message
@@ -329,12 +316,11 @@ fn test_get()
         .filter_level(log::LevelFilter::Debug)
         .try_init();
 
-    let mut args = crate::Args::default();
-    args.dry_run = true;
+    let args = crate::Args { dry_run: true, ..Default::default() };
 
     let semver_data = SemverData {
         branches: vec![],
-        commits: SemverDataCommits 
+        commits: crate::SemverDataCommits 
         {
             case_sensitive: false,
             default: "PATCH".to_string(),
@@ -343,7 +329,7 @@ fn test_get()
             prerelease: vec![],
         
         },
-        tagging: SemverDataTagging {
+        tagging: crate::SemverDataTagging {
             supported_repositories: Default::default(),
         },
     };
@@ -351,7 +337,7 @@ fn test_get()
 
     let releases = get(args, &semver_data, &repository);
 
-    if releases.len() > 0
+    if !releases.is_empty()
     {
         for release in releases.iter()
         {
