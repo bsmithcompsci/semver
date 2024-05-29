@@ -26,4 +26,4 @@ inputs:
 runs:
   using: "docker"
   image: "docker://bsmithcompsci/flex-vers:latest"
-  entrypoint: "entrypoint.sh"
+  entrypoint: "/github/workspace/entrypoint.sh"
