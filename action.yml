@@ -31,4 +31,5 @@ inputs:
 runs:
   using: "docker"
   image: "docker://bsmithcompsci/flex-vers:latest"
-  entrypoint: "entrypoint.sh"
+  args: 
+  - "entrypoint.sh"
