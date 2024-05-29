@@ -26,4 +26,6 @@ inputs:
 runs:
   using: "docker"
   image: "docker://bsmithcompsci/flex-vers:latest"
-  entrypoint: "/github/workspace/entrypoint.sh"
+  entrypoint: "ls"
+  args:
+    - "-aln"
