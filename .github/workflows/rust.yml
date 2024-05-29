@@ -18,6 +18,19 @@ jobs:
     # Checkout the repository
     - uses: actions/checkout@v4
 
+    # Cache the target directory to speed up the build
+    - name: Cache target directory
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo
+          target
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+          ${{ runner.os }}-build-
+          ${{ runner.os }}-
+
     # Linting with Clippy; Clippy is a collection of lints to catch common mistakes and improve your Rust code.
     - name: Clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
@@ -37,3 +50,4 @@ jobs:
         tags: latest, ${{ github.sha }}
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
