@@ -51,7 +51,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             {
                 if commit_tags.contains_key(&commit.id()) 
                 {
-                    commit_tag_index = index;
+                    commit_tag_index = index + 1;
                 }
             }
             commit_tag_index
