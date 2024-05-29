@@ -4,4 +4,4 @@ color: "green"
 icon: "tag"
 runs:
   using: "docker"
-  image: "bsmithcompsci/flex-vers:latest"
+  image: "docker://bsmithcompsci/flex-vers:latest"
