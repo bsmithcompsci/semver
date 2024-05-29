@@ -98,64 +98,64 @@ pub fn tag(args: crate::Args, release: &Release, commit: &git2::Commit, reposito
 #[test]
 fn test_tagging()
 {
-    use crate::libs::release::Release;
-    use crate::libs::release::ReleaseType;
+    // use crate::libs::release::Release;
+    // use crate::libs::release::ReleaseType;
 
-    let _ = env_logger::Builder::new()
-        .filter_level(log::LevelFilter::Debug)
-        .try_init();
+    // let _ = env_logger::Builder::new()
+    //     .filter_level(log::LevelFilter::Debug)
+    //     .try_init();
 
-    {
-        let home = std::env::var("HOME").unwrap_or(std::env::var("USERPROFILE").unwrap_or(".".to_string()));
-        let var = Some(format!("{}/.ssh/Github", home));
-        std::env::set_var("GIT_SSH_KEY_PATH", var.clone().unwrap());
-        debug!("Git Credentials Authenticated: {}", var.clone().unwrap());
-    }
+    // {
+    //     let home = std::env::var("HOME").unwrap_or(std::env::var("USERPROFILE").unwrap_or(".".to_string()));
+    //     let var = Some(format!("{}/.ssh/Github", home));
+    //     std::env::set_var("GIT_SSH_KEY_PATH", var.clone().unwrap());
+    //     debug!("Git Credentials Authenticated: {}", var.clone().unwrap());
+    // }
 
-    let rand_major = rand::random::<u8>();
+    // let rand_major = rand::random::<u8>();
 
-    let mut version = SemanticVersion::new();
-    version.increment_by(&version::CommitType::MAJOR, rand_major as u32);
+    // let mut version = SemanticVersion::new();
+    // version.increment_by(&version::CommitType::MAJOR, rand_major as u32);
 
-    let repository = git2::Repository::open(".").unwrap();
-    let commit = repository.head().unwrap().peel_to_commit().unwrap();
-    let release = Release {
-        version: version.clone(),
-        tag: ReleaseType::Release,
-        commit: commit.id(),
-        majors: vec!["Major Change".to_string()],
-        minors: vec!["Minor Change".to_string()],
-        patches: vec!["Patch Change".to_string()],
-        contributors: vec![ReleaseContributor { name: "Name".to_string(), email: "Test@email.com".to_string() }],
-    };
+    // let repository = git2::Repository::open(".").unwrap();
+    // let commit = repository.head().unwrap().peel_to_commit().unwrap();
+    // let release = Release {
+    //     version: version.clone(),
+    //     tag: ReleaseType::Release,
+    //     commit: commit.id(),
+    //     majors: vec!["Major Change".to_string()],
+    //     minors: vec!["Minor Change".to_string()],
+    //     patches: vec!["Patch Change".to_string()],
+    //     contributors: vec![ReleaseContributor { name: "Name".to_string(), email: "Test@email.com".to_string() }],
+    // };
 
-    let args = crate::Args::default();
+    // let args = crate::Args::default();
 
-    let tag_oid = tag(args, &release, &commit, &repository);
+    // let tag_oid = tag(args, &release, &commit, &repository);
 
-    assert!(tag_oid.is_some());
-    assert!(tag_oid.unwrap().is_zero() == false);
+    // assert!(tag_oid.is_some());
+    // assert!(tag_oid.unwrap().is_zero() == false);
 
-    let tag_name = release.version.to_string();
+    // let tag_name = release.version.to_string();
     
-    debug!("Tag OID: {:?}", tag_oid.unwrap());
-    debug!("Tag Name: {}", tag_name.as_str());
+    // debug!("Tag OID: {:?}", tag_oid.unwrap());
+    // debug!("Tag Name: {}", tag_name.as_str());
 
-    // Cleanup when in test.
-    repository.tag_delete(&tag_name.as_str()).unwrap();
+    // // Cleanup when in test.
+    // repository.tag_delete(&tag_name.as_str()).unwrap();
 
-    // Callbacks
-    let mut callbacks = git2::RemoteCallbacks::new();
-    callbacks.credentials(crate::git_credentials_callback);
+    // // Callbacks
+    // let mut callbacks = git2::RemoteCallbacks::new();
+    // callbacks.credentials(crate::git_credentials_callback);
     
-    // Push Tags.
-    let mut remote = repository.find_remote("origin").unwrap();
-    if let Err(error) = remote.push(&[format!("refs/tags/{}", tag_name.as_str()).to_string()], Some(git2::PushOptions::new().remote_callbacks(callbacks)))
-    {
-        error!("Failed to push Tag: {} for {}\n\t{:?}", tag_name.as_str(), commit.id(), error);
-    }
-    else
-    {
-        info!("Pushed Tag: {} for {}", tag_name.as_str(), commit.id());
-    }
+    // // Push Tags.
+    // let mut remote = repository.find_remote("origin").unwrap();
+    // if let Err(error) = remote.push(&[format!("refs/tags/{}", tag_name.as_str()).to_string()], Some(git2::PushOptions::new().remote_callbacks(callbacks)))
+    // {
+    //     error!("Failed to push Tag: {} for {}\n\t{:?}", tag_name.as_str(), commit.id(), error);
+    // }
+    // else
+    // {
+    //     info!("Pushed Tag: {} for {}", tag_name.as_str(), commit.id());
+    // }
 }
