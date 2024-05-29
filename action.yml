@@ -2,9 +2,28 @@ name: "Flex-Vers"
 description: "A GitHub Action to run Flex-Vers from Dockerhub; Flex-Vers is a tool to manage versions of your project."
 color: "green"
 icon: "tag"
+inputs:
+  skip-non-formatted: 
+    description: "Skip non-formatted versions"
+    required: false
+    default: "false"
+    type: "boolean"
+  force-release: 
+    description: "Force release"
+    required: false
+    default: "false"
+    type: "boolean"
+  force-pre-release:
+    description: "Force pre-release"
+    required: false
+    default: "false"
+    type: "boolean"
+  keep-root-version-up-to-date:
+    description: "Keep root version up to date"
+    required: false
+    default: "false"
+    type: "boolean"
 runs:
   using: "docker"
   image: "docker://bsmithcompsci/flex-vers:latest"
-  args:
-    - "/app/flexvers"
-    - "--skip-non-formatted"
+  entrypoint: "entrypoint.sh"
