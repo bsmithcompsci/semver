@@ -222,12 +222,31 @@ pub fn git_credentials_callback(
     
     debug!("Authenticating with user: [{:?}] {} [{:?}]", _user_from_url, user.to_string(), _cred);
 
+    // Handle the username.
     if _cred.contains(git2::CredentialType::USERNAME) {
         return git2::Cred::username(user);
     }
 
+    // Handle the user and password.
+    if _cred.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
+        // Check if the user and token alias exists to set the git credential environments.
+        //  We handle alias environments for the use to redirect the user and token to the corrent environment variables, 
+        //  like GITHUB_USER and GITHUB_TOKEN; which are provided by Github. Since we are not specific for Github, we must use an alias.
+        if std::env::var("GIT_ALIAS_USER").is_ok() {
+            std::env::set_var("GIT_USER", std::env::var("GIT_ALIAS_USER").expect("Missing Git Alias User output value."));
+        }
+        if std::env::var("GIT_ALIAS_TOKEN").is_ok() {
+            std::env::set_var("GIT_TOKEN", std::env::var("GIT_ALIAS_TOKEN").expect("Missing Git Alias Token output value."));
+        }
 
+        // Login with the user and token.
+        return git2::Cred::userpass_plaintext(
+            std::env::var("GIT_USER").expect("Missing Git User.").as_str(), 
+            std::env::var("GIT_TOKEN").expect("Missing Git Token.").as_str()
+        );
+    }
 
+    // Handle the user and private key either via path or in-memory.
     match std::env::var("GIT_SSH_KEY_PATH") {
         Ok(private_key_path) => {
             debug!("Authenticate with user {} and private key located in {}", user, private_key_path);
