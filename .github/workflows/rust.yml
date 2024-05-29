@@ -80,5 +80,11 @@ jobs:
     # Run Flex-Vers
     - name: Flex-Vers
       uses: bsmithcompsci/semver@v1
+      with:
+        skip-non-formatted: true
+        keep-root-version-up-to-date: true
+        lint: true
+        force-release: false
+        force-pre-release: false
             
 

@@ -23,10 +23,12 @@ inputs:
     required: false
     default: "false"
     type: "boolean"
+  lint:
+    description: "Lint the project"
+    required: false
+    default: "false"
+    type: "boolean"
 runs:
   using: "docker"
   image: "docker://bsmithcompsci/flex-vers:latest"
-  entrypoint: "ls"
-  args:
-    - "-aln"
-    - "/app"
+  entrypoint: "entrypoint.sh"
