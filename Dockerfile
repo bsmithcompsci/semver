@@ -1,7 +1,7 @@
 # BUILD TIME
 FROM rust:latest as build
 
-WORKDIR /app
+WORKDIR /build
 
 COPY . .
 
@@ -12,6 +12,7 @@ FROM rust:latest as runtime
 WORKDIR /app
 RUN git config --global --add safe.directory '*'
 
-COPY --from=build /app/target/release .
+COPY --from=build /build/target/release .
+COPY --from=build /build/entrypoint.sh ./entrypoint.sh
 
 CMD ["/app/flexvers"]
