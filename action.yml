@@ -6,5 +6,5 @@ runs:
   using: "docker"
   image: "docker://bsmithcompsci/flex-vers:latest"
   args:
-    - "/app/flex-vers"
+    - "/app/flexvers"
     - "--skip-non-formatted"
