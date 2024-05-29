@@ -232,11 +232,13 @@ pub fn git_credentials_callback(
         // Check if the user and token alias exists to set the git credential environments.
         //  We handle alias environments for the use to redirect the user and token to the corrent environment variables, 
         //  like GITHUB_USER and GITHUB_TOKEN; which are provided by Github. Since we are not specific for Github, we must use an alias.
-        if std::env::var("GIT_ALIAS_USER").is_ok() {
-            std::env::set_var("GIT_USER", std::env::var("GIT_ALIAS_USER").expect("Missing Git Alias User output value."));
+        if let Ok(user) = std::env::var("GIT_ALIAS_USER") {
+            std::env::set_var("GIT_USER", std::env::var(user.clone()).expect(format!("Missing Git Alias User output value: {}", user.clone()).as_str()));
+            info!("GIT_ALIAS_USER was Set: {}", user);
         }
-        if std::env::var("GIT_ALIAS_TOKEN").is_ok() {
-            std::env::set_var("GIT_TOKEN", std::env::var("GIT_ALIAS_TOKEN").expect("Missing Git Alias Token output value."));
+        if let Ok(token) = std::env::var("GIT_ALIAS_TOKEN") {
+            std::env::set_var("GIT_TOKEN", std::env::var(token.clone()).expect(format!("Missing Git Alias Token output value: {}", token.clone()).as_str()));
+            info!("GIT_ALIAS_TOKEN was Set: {}", token);
         }
 
         // Login with the user and token.
