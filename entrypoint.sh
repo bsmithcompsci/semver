@@ -14,7 +14,7 @@ mkdir -p /app/workspace
 cp -r $(pwd)/.git /app/workspace/.git
 cp -r $(pwd)/.semver.json /app/workspace/.semver.json
 
-chown -R 1:1 /app/workspace
+chown -R $(id -u):$(id -g) /app/workspace
 ls -aln /app/workspace
 
 # Change to the workspace directory
