@@ -3,7 +3,7 @@
 use std::{fs::File, io};
 
 use clap::Parser;
-use log::{debug, error, info, trace};
+use log::{debug, error, info};
 
 mod libs;
 mod feature;

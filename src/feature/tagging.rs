@@ -1,6 +1,6 @@
 use log::{debug, info, error};
 
-use crate::libs::{release::{Release, ReleaseContributor, ReleaseType}, version::{self, SemanticVersion}};
+use crate::libs::release::{Release, ReleaseType};
 
 pub fn tag(args: crate::Args, release: &Release, commit: &git2::Commit, repository: &git2::Repository) -> Option<git2::Oid>
 {

@@ -1,4 +1,4 @@
-use crate::libs::{release::{Release, ReleaseType}, version::CommitType};
+use crate::libs::release::{Release, ReleaseType};
 
 use log::{debug, error, info};
 
