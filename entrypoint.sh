@@ -14,24 +14,24 @@ cd /app/workspace
 args=""
 
 # Handling the variables:
-# INPUT_SKIP-NON-FORMATTED
-# INPUT_KEEP-ROOT-VERSION-UP-TO-DATE
-# INPUT_FORCE-RELEASE
-# INPUT_FORCE-PRE-RELEASE
+# INPUT_SKIP_NON_FORMATTED
+# INPUT_KEEP_ROOT_VERSION_UP_TO_DATE
+# INPUT_FORCE_RELEASE
+# INPUT_FORCE_PRE_RELEASE
 # Check if the --skip-non-formatted flag environment variable is true
-if [ "${INPUT_SKIP-NON-FORMATTED}" = "true" ]; then
-    echo "Skipping non-formatted"
+if [ "${INPUT_SKIP_NON_FORMATTED}" = "true" ]; then
+    echo "Skipping non-formatted messages"
     args="--skip-non-formatted"
 fi
-if [ "${INPUT_KEEP-ROOT-VERSION-UP-TO-DATE}" = "true" ]; then
+if [ "${INPUT_KEEP_ROOT_VERSION_UP_TO_DATE}" = "true" ]; then
     echo "Keeping root version up to date"
 #   args="$args --keep-root-version-up-to-date"
 fi
-if [ "${INPUT_FORCE-RELEASE}" = "true" ]; then
+if [ "${INPUT_FORCE_RELEASE}" = "true" ]; then
     echo "Forcing release"
 #   args="$args --force-release"
 fi
-if [ "${INPUT_FORCE-PRE-RELEASE}" = "true" ]; then
+if [ "${INPUT_FORCE_PRE_RELEASE}" = "true" ]; then
     echo "Forcing pre-release"
 #   args="$args --force-pre-release"
 fi

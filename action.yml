@@ -3,22 +3,22 @@ description: "A GitHub Action to run Flex-Vers from Dockerhub; Flex-Vers is a to
 color: "green"
 icon: "tag"
 inputs:
-  skip-non-formatted: 
+  skip_non_formatted: 
     description: "Skip non-formatted versions"
     required: false
     default: "false"
     type: "boolean"
-  force-release: 
+  force_release: 
     description: "Force release"
     required: false
     default: "false"
     type: "boolean"
-  force-pre-release:
+  force_pre_release:
     description: "Force pre-release"
     required: false
     default: "false"
     type: "boolean"
-  keep-root-version-up-to-date:
+  keep_root_version_up_to_date:
     description: "Keep root version up to date"
     required: false
     default: "false"

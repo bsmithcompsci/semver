@@ -81,10 +81,10 @@ jobs:
     - name: Flex-Vers
       uses: bsmithcompsci/semver@v1
       with:
-        skip-non-formatted: true
-        keep-root-version-up-to-date: true
-        lint: true
-        force-release: false
-        force-pre-release: false
+        skip_non_formatted: true
+        force_release: false
+        force_pre_release: false
+        keep_root_version_up_to_date: true
+        lint: false
             
 
