@@ -329,7 +329,9 @@ fn test_get()
         .filter_level(log::LevelFilter::Debug)
         .try_init();
 
-    let args = crate::Args::default();
+    let mut args = crate::Args::default();
+    args.dry_run = true;
+
     let semver_data = SemverData {
         branches: vec![],
         commits: SemverDataCommits 

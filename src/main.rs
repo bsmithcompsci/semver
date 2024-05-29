@@ -3,7 +3,7 @@
 use std::{fs::File, io};
 
 use clap::Parser;
-use log::{debug, error, info};
+use log::{debug, error, info, trace};
 
 mod libs;
 mod feature;
@@ -135,7 +135,7 @@ async fn main() {
     
     if args.credentials.is_some()
     {
-        std::env::set_var("GIT_SSH_KEY", args.credentials.clone().unwrap());
+        std::env::set_var("GIT_SSH_KEY_PATH", args.credentials.clone().unwrap());
 
         debug!("Git Credentials Authenticated: {}", args.credentials.clone().unwrap());
     }
@@ -220,31 +220,54 @@ pub fn git_credentials_callback(
 ) -> Result<git2::Cred, git2::Error> {
     let user = _user_from_url.unwrap_or("git");
     
-    debug!("Authenticating with user: [{:?}] {} [{:?}]", _user_from_url, user.to_string(), _cred);
+    let _cred = match std::env::var("GIT_CREDENTIALS") {
+        Ok(cred) => match cred.as_str() {
+            "USERNAME"              => git2::CredentialType::USERNAME,
+            "USER_PASS_PLAINTEXT"   => git2::CredentialType::USER_PASS_PLAINTEXT,
+            "SSH_KEY"               => git2::CredentialType::SSH_KEY,
+            _ => _cred,
+        }
+        _ => _cred,
+    };
+
+    debug!(r#"Git Credentials Callback:
+        User: {}
+        User From URL: {:?}
+        Credential Type: {:?}
+    "#, user, _user_from_url, _cred);
+
 
     // Handle the username.
     if _cred.contains(git2::CredentialType::USERNAME) {
+        debug!("Authenticate with user {}", user);
         return git2::Cred::username(user);
     }
 
     // Handle the user and password.
     if _cred.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
+        debug!("Authenticate with user {} and password", user);
         // Check if the user and token alias exists to set the git credential environments.
         //  We handle alias environments for the use to redirect the user and token to the corrent environment variables, 
         //  like GITHUB_USER and GITHUB_TOKEN; which are provided by Github. Since we are not specific for Github, we must use an alias.
         if let Ok(user) = std::env::var("GIT_ALIAS_USER") {
             std::env::set_var("GIT_USER", std::env::var(user.clone()).expect(format!("Missing Git Alias User output value: {}", user.clone()).as_str()));
-            info!("GIT_ALIAS_USER was Set: {}", user);
+            debug!("GIT_ALIAS_USER was Set: {}", user);
         }
         if let Ok(token) = std::env::var("GIT_ALIAS_TOKEN") {
             std::env::set_var("GIT_TOKEN", std::env::var(token.clone()).expect(format!("Missing Git Alias Token output value: {}", token.clone()).as_str()));
-            info!("GIT_ALIAS_TOKEN was Set: {}", token);
+            debug!("GIT_ALIAS_TOKEN was Set: {}", token);
         }
+
+        let username = std::env::var("GIT_USER").expect("Missing Git User");
+        let password = std::env::var("GIT_TOKEN").expect("Missing Git Token");
+
+        debug!("Username: {}", username);
+        debug!("Password: {}", password);
 
         // Login with the user and token.
         return git2::Cred::userpass_plaintext(
-            std::env::var("GIT_USER").expect("Missing Git User.").as_str(), 
-            std::env::var("GIT_TOKEN").expect("Missing Git Token.").as_str()
+            username.as_str(),
+            password.as_str()
         );
     }
 

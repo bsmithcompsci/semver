@@ -108,7 +108,7 @@ fn test_tagging()
     {
         let home = std::env::var("HOME").unwrap_or(std::env::var("USERPROFILE").unwrap_or(".".to_string()));
         let var = Some(format!("{}/.ssh/Github", home));
-        std::env::set_var("GIT_SSH_KEY", var.clone().unwrap());
+        std::env::set_var("GIT_SSH_KEY_PATH", var.clone().unwrap());
         debug!("Git Credentials Authenticated: {}", var.clone().unwrap());
     }
 
@@ -137,6 +137,9 @@ fn test_tagging()
     assert!(tag_oid.unwrap().is_zero() == false);
 
     let tag_name = release.version.to_string();
+    
+    debug!("Tag OID: {:?}", tag_oid.unwrap());
+    debug!("Tag Name: {}", tag_name.as_str());
 
     // Cleanup when in test.
     repository.tag_delete(&tag_name.as_str()).unwrap();
