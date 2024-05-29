@@ -1,5 +1,81 @@
 #![cfg_attr(feature = "strict", deny(missing_docs))]
 #![cfg_attr(feature = "strict", deny(warnings))]
+
+/// # Semantic Versioning
+/// 
+/// This is a simple tool to help automate the process of creating semantic versioning tags and releases for your repository.
+/// 
+/// ## Features
+/// 
+/// - [x] Semantic Versioning
+/// - [x] Tagging
+/// - [ ] Generation of Changelog
+/// - [x] Release
+/// - [x] Github
+/// - [ ] Gitlab
+/// - [ ] Bitbucket
+/// - [ ] Gitea
+/// 
+/// ## Usage
+/// 
+/// ```bash
+/// # Help
+/// semver --help
+/// 
+/// # Version
+/// semver --version
+/// 
+/// # Release the latest commit regardless, if the commit is tagged for release or not.
+/// semver --input-file .semver.json --repository . --release
+/// 
+/// # Release the latest commit as a pre-release regardless, if the commit is tagged for pre-release or not.
+/// semver --input-file .semver.json --repository . --prerelease
+/// 
+/// # Dry Run, do not act on anything, but give the outcome if it would.
+/// semver --input-file .semver.json --repository . --dry-run
+/// 
+/// # Increment regardless, if there will be a release or not. This will skip versions in tags.
+/// semver --input-file .semver.json --repository . --always-increment
+/// 
+/// # Skip any commits that are not formatted under the https://semver.org/ format rules. This will not include the skipped commits in the release.
+/// semver --input-file .semver.json --repository . --skip-non-formatted
+/// 
+/// # Exit with an Error Code when encountering any errors; this is useful for CI/CD pipelines. This also implies non-formatted commits would cause errors.
+/// semver --input-file .semver.json --repository . --exit-on-error
+/// 
+/// # Path to the credentials file. Default will go to your {HOME}/.ssh/Github
+/// semver --input-file .semver.json --repository . --credentials ~/.ssh/Github
+/// 
+/// # Override the repository type: github, gitlab, bitbucket, gitea, etc.
+/// semver --input-file .semver.json --repository . --override-repository-type github
+/// 
+/// # Override the repository type: github, gitlab, bitbucket, gitea, etc.
+/// semver --input-file .semver.json --repository . --override-repository-type gitlab
+/// 
+/// # Override the repository type: github, gitlab, bitbucket, gitea, etc.
+/// semver --input-file .semver.json --repository . --override-repository-type bitbucket
+/// 
+/// # Override the repository type: github, gitlab, bitbucket, gitea, etc.
+/// semver --input-file .semver.json --repository . --override-repository-type gitea
+/// ```
+/// 
+/// ## Configuration
+/// 
+/// ```json
+/// {
+///    "tagging": {
+///       "supported_repositories": {
+///         "github": {
+///          "enabled": true
+///        }
+///     }
+///  }
+/// }
+/// ```
+/// 
+/// ## License
+/// 
+/// MIT
 use std::{fs::File, io};
 
 use clap::Parser;
