@@ -6,4 +6,4 @@ COPY . .
 
 RUN cargo build --release --features "strict"
 
-CMD ["./target/release/semver"]
+CMD ["./target/release/flexvers"]
