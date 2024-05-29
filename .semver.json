@@ -72,7 +72,8 @@
                 "build",
                 "ci",
                 "deps",
-                "security"
+                "security",
+                "lint"
             ]
         } 
     }

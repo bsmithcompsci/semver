@@ -1,0 +1,5 @@
+name: "Flex-Vers"
+description: "A GitHub Action to run Flex-Vers from Dockerhub; Flex-Vers is a tool to manage versions of your project."
+runs:
+  using: "docker"
+  image: "bsmithcompsci/flex-vers:latest"

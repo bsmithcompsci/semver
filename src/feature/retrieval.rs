@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 
-use crate::{libs::{release::{Release, ReleaseContributor}, version::{CommitType, SemanticVersion}}, SemverData};
+use crate::{libs::{release::{Release, ReleaseContributor, ReleaseType}, version::{CommitType, SemanticVersion}}, SemverData};
 
 pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repository) -> Vec<Release>
 {
@@ -47,14 +47,12 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
     {
         let last_commit_index = {
             let mut commit_tag_index = 0;
-            let mut index = 0;
-            for commit in commits.iter() 
+            for (index, commit) in commits.iter().enumerate()
             {
                 if commit_tags.contains_key(&commit.id()) 
                 {
-                    commit_tag_index = index + 1;
+                    commit_tag_index = index;
                 }
-                index += 1;
             }
             commit_tag_index
         };
@@ -76,8 +74,26 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
     // Parse each commit and fill out information that is needed.
     for commit in commits.iter() 
     {
-        let mut should_release = args.release && commits.last().unwrap().id() == commit.id();
-        let mut should_prerelease = args.prerelease && commits.last().unwrap().id() == commit.id();
+        let mut release_type;
+        if commits.last().unwrap().id() == commit.id()
+        {
+            if args.release
+            {
+                release_type = ReleaseType::Release;
+            }
+            else if args.prerelease
+            {
+                release_type = ReleaseType::PreRelease;
+            }
+            else
+            {
+                release_type = ReleaseType::None;
+            }
+        }
+        else
+        {
+            release_type = ReleaseType::None;
+        }
 
         let commit_id = commit.id();
         let commit_message = commit.message().unwrap();
@@ -103,14 +119,31 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
         }
 
         // First word of the commit message
-        let first_word = commit_message.split_whitespace().next().unwrap();
-
+        let regex_str = regex::Regex::new(r#"^([a-zA-Z]+\s*)+(\([a-zA-Z]+\)|)(!?):"#).unwrap();
         // Check if the commit message follows the format.
-        let follows_format: bool = regex::Regex::new(r#"^[a-zA-Z]+(\([a-zA-Z]+\)|):"#).unwrap().is_match(first_word);
+        let captures = regex_str.captures(commit_message);
+        
+        let is_major;
+        let follows_format: bool;
+        let first_word;
+        if let Some(captures) = captures
+        {
+            
+            first_word = captures.get(0).unwrap().as_str();
+            follows_format = true;
+
+            is_major = captures.len() > 3 && captures.get(3).unwrap().as_str() == "!";
+        }
+        else
+        {
+            first_word = commit_message.split_whitespace().next().unwrap();
+            follows_format = false;
+            is_major = false;
+        }
 
         // Check if the first word is in the map
         let mut skip = false;
-        let mut commit_type : CommitType = CommitType::PATCH;
+        let mut commit_type : CommitType = CommitType::Patch;
         for (key, value) in semver_data.commits.map.iter() 
         {
             for value in value.iter() 
@@ -120,15 +153,15 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
                     // Parse the Key to the Commit Type, default is PATCH.
                     commit_type = match key.to_uppercase().as_str() 
                     {
-                        "MAJOR" => CommitType::MAJOR,
-                        "MINOR" => CommitType::MINOR,
-                        "PATCH" => CommitType::PATCH,
+                        "MAJOR" => CommitType::Major,
+                        "MINOR" => CommitType::Minor,
+                        "PATCH" => CommitType::Patch,
                         _ => match semver_data.commits.default.to_uppercase().as_str() 
                         {
-                            "MAJOR" => CommitType::MAJOR,
-                            "MINOR" => CommitType::MINOR,
-                            "PATCH" => CommitType::PATCH,
-                            _ => CommitType::PATCH,
+                            "MAJOR" => CommitType::Major,
+                            "MINOR" => CommitType::Minor,
+                            "PATCH" => CommitType::Patch,
+                            _ => CommitType::Patch,
                         }
                     };
                     break;
@@ -160,15 +193,20 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             continue;
         }
 
-        // Trigger Release.
-        if semver_data.commits.release.iter().any(|x| first_word.contains(format!("({})", x).as_str()))
+        if is_major
         {
-            should_release = true;
+            commit_type = CommitType::Major;
+        }
+
+        // Trigger Release.
+        if semver_data.commits.release.iter().any(|x| first_word.contains(format!("({})", x).as_str())) || commit_type == CommitType::Major
+        {
+            release_type = ReleaseType::Release;
         }
         // Trigger Prerelease.
         if semver_data.commits.prerelease.iter().any(|x| first_word.contains(format!("({})", x).as_str()))
         {
-            should_prerelease = true;
+            release_type = ReleaseType::PreRelease;
         }
 
         // Place Commit Messages into the correct array.
@@ -177,13 +215,12 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             regex::Regex::new(x.name.as_str()).unwrap().is_match(branch)
         );
 
-        let mut can_increment = should_release || should_prerelease;
+        let mut can_increment = release_type != ReleaseType::None;
         if branch_rules.is_some()
         {
             let branch_rules = branch_rules.unwrap();
-            if branch_rules.prerelease.is_some() && branch_rules.prerelease.unwrap()
-            {
-                should_prerelease = true;
+            if can_increment && branch_rules.prerelease.is_some() && branch_rules.prerelease.unwrap() {
+                release_type = ReleaseType::PreRelease;
             }
 
             if branch_rules.increment.is_some()
@@ -194,9 +231,9 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
 
         match commit_type 
         {
-            CommitType::MAJOR => release_majors.push(commit_message.to_string()),
-            CommitType::MINOR => release_minors.push(commit_message.to_string()),
-            CommitType::PATCH => release_patches.push(commit_message.to_string()),
+            CommitType::Major => release_majors.push(commit_message.to_string()),
+            CommitType::Minor => release_minors.push(commit_message.to_string()),
+            CommitType::Patch => release_patches.push(commit_message.to_string()),
         }
 
         let bad_emails = ["noreply."];
@@ -217,7 +254,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
         }
 
         // We detected a new release, so we need to create a new release.
-        if should_release || should_prerelease
+        if can_increment
         {
             // We need to close the current release.
             if current_release.is_some()
@@ -229,7 +266,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             //  Piece together the release data to catchup.
             let release = Release { 
                 commit: commit_id,
-                release: should_release, 
+                tag: release_type, 
                 version: release_version.clone(), 
                 majors: release_majors.clone(), 
                 minors: release_minors.clone(), 
@@ -243,6 +280,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             release_patches.clear();
             release_contributors.clear();
             
+            debug!("Switching Releases:\n\tOld - {:?}\n\tNew - {:?}", current_release, release.clone());
             current_release = Some(release);
         }
 
@@ -250,7 +288,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             "Commit: [{:?}] {}{}{} - {} - {}",
             commit_type, 
             if tag.is_some() { format!("[TAGGED: {}] ", tag.unwrap().name().unwrap()) } else { "".to_string() }, 
-            if should_release || should_prerelease { format!("[TAGGING] ") } else { "".to_string() }, 
+            if can_increment { "[TAGGING] ".to_string() } else { "".to_string() }, 
             commit_id, 
             commit_author.name().unwrap(), 
             commit_message
@@ -265,4 +303,47 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
     }
 
     releases
+}
+
+#[test]
+fn test_get()
+{
+    use crate::libs::version::SemanticVersion;
+    use crate::libs::release::ReleaseType;
+    use crate::SemverData;
+    
+    let _ = env_logger::Builder::new()
+        .filter_level(log::LevelFilter::Debug)
+        .try_init();
+
+    let args = crate::Args { dry_run: true, ..Default::default() };
+
+    let semver_data = SemverData {
+        branches: vec![],
+        commits: crate::SemverDataCommits 
+        {
+            case_sensitive: false,
+            default: "PATCH".to_string(),
+            map: Default::default(),
+            release: vec![],
+            prerelease: vec![],
+        
+        },
+        tagging: crate::SemverDataTagging {
+            supported_repositories: Default::default(),
+        },
+    };
+    let repository = git2::Repository::open(".").unwrap();
+
+    let releases = get(args, &semver_data, &repository);
+
+    if !releases.is_empty()
+    {
+        for release in releases.iter()
+        {
+            assert_ne!(release.version, SemanticVersion::new(), "Version is not set: {:?}", release);
+            assert_ne!(release.tag, ReleaseType::None, "Tag is not set: {:?}", release);
+            assert_ne!(release.contributors.len(), 0, "Contributors is not set: {:?}", release);
+        }
+    }
 }

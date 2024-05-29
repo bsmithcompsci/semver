@@ -15,8 +15,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # Checkout the repository
     - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
+
+    # Cache the target directory to speed up the build
+    - name: Cache target directory
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo
+          target
+        key: ${{ runner.os }}-build-${{ hashFiles('**/cargo.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-build-
+          ${{ runner.os }}-
+
+    # Linting with Clippy; Clippy is a collection of lints to catch common mistakes and improve your Rust code.
+    - name: Clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+
+    # Run tests
     - name: Run tests
       run: cargo test --verbose
+
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+    # Build the project and publish it to Dockerhub
+    - name: Publish to Dockerhub
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/flex-vers:latest, ${{ secrets.DOCKERHUB_USERNAME }}/flex-vers:${{ github.sha }}
+

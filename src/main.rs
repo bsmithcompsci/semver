@@ -1,5 +1,81 @@
 #![cfg_attr(feature = "strict", deny(missing_docs))]
 #![cfg_attr(feature = "strict", deny(warnings))]
+
+//! # Semantic Versioning
+//! 
+//! This is a simple tool to help automate the process of creating semantic versioning tags and releases for your repository.
+//! 
+//! ## Features
+//! 
+//! - [x] Semantic Versioning
+//! - [x] Tagging
+//! - [ ] Generation of Changelog
+//! - [x] Release
+//! - [x] Github
+//! - [ ] Gitlab
+//! - [ ] Bitbucket
+//! - [ ] Gitea
+//! 
+//! ## Usage
+//! 
+//! ```bash
+//! # Help
+//! semver --help
+//! 
+//! # Version
+//! semver --version
+//! 
+//! # Release the latest commit regardless, if the commit is tagged for release or not.
+//! semver --input-file .semver.json --repository . --release
+//! 
+//! # Release the latest commit as a pre-release regardless, if the commit is tagged for pre-release or not.
+//! semver --input-file .semver.json --repository . --prerelease
+//! 
+//! # Dry Run, do not act on anything, but give the outcome if it would.
+//! semver --input-file .semver.json --repository . --dry-run
+//! 
+//! # Increment regardless, if there will be a release or not. This will skip versions in tags.
+//! semver --input-file .semver.json --repository . --always-increment
+//! 
+//! # Skip any commits that are not formatted under the https://semver.org/ format rules. This will not include the skipped commits in the release.
+//! semver --input-file .semver.json --repository . --skip-non-formatted
+//! 
+//! # Exit with an Error Code when encountering any errors; this is useful for CI/CD pipelines. This also implies non-formatted commits would cause errors.
+//! semver --input-file .semver.json --repository . --exit-on-error
+//! 
+//! # Path to the credentials file. Default will go to your {HOME}/.ssh/Github
+//! semver --input-file .semver.json --repository . --credentials ~/.ssh/Github
+//! 
+//! # Override the repository type: github, gitlab, bitbucket, gitea, etc.
+//! semver --input-file .semver.json --repository . --override-repository-type github
+//! 
+//! # Override the repository type: github, gitlab, bitbucket, gitea, etc.
+//! semver --input-file .semver.json --repository . --override-repository-type gitlab
+//! 
+//! # Override the repository type: github, gitlab, bitbucket, gitea, etc.
+//! semver --input-file .semver.json --repository . --override-repository-type bitbucket
+//! 
+//! # Override the repository type: github, gitlab, bitbucket, gitea, etc.
+//! semver --input-file .semver.json --repository . --override-repository-type gitea
+//! ```
+//! 
+//! ## Configuration
+//! 
+//! ```json
+//! {
+//!    "tagging": {
+//!       "supported_repositories": {
+//!         "github": {
+//!          "enabled": true
+//!        }
+//!     }
+//!  }
+//! }
+//! ```
+//! 
+//! ## License
+//! 
+//! MIT
 use std::{fs::File, io};
 
 use clap::Parser;
@@ -11,7 +87,7 @@ mod feature;
 use libs::data::*;
 use maplit::hashmap;
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Default)]
 #[command(version, about, long_about = None)]
 struct Args {
     #[arg(short, long, help = "Path to the configuration file. Supports: .json", default_value = ".semver.json")]
@@ -135,7 +211,7 @@ async fn main() {
     
     if args.credentials.is_some()
     {
-        std::env::set_var("GIT_SSH_KEY", args.credentials.clone().unwrap());
+        std::env::set_var("GIT_SSH_KEY_PATH", args.credentials.clone().unwrap());
 
         debug!("Git Credentials Authenticated: {}", args.credentials.clone().unwrap());
     }
@@ -204,8 +280,8 @@ async fn main() {
                         if args.exit_on_error
                         {
                             std::process::exit(1);
+                        }
                     }
-                }
                 }
             }
         }
@@ -213,25 +289,94 @@ async fn main() {
     }
 }
 
-pub fn git_credentials_callback(
+
+/// Git Credentials Callback
+/// 
+/// This function is used to handle the Git Credentials Callback for the Git2 library.
+/// 
+/// ```rust
+/// fn main() {
+///     let user = "git";
+///     let user_from_url = Some("git");
+///     let cred = git2::CredentialType::USERNAME;
+/// 
+///     let result = crate::git_credentials_callback(user, user_from_url, cred);
+/// 
+///     match result {
+///         Ok(cred) => {
+///             println!("Cred: {:?}", cred);
+///         },
+///         Err(error) => {
+///             println!("Error: {:?}", error);
+///         }
+///     }
+///}
+/// ```
+pub(crate) fn git_credentials_callback(
     _user: &str,
     _user_from_url: Option<&str>,
     _cred: git2::CredentialType,
 ) -> Result<git2::Cred, git2::Error> {
     let user = _user_from_url.unwrap_or("git");
     
-    debug!("Authenticating with user: [{:?}] {} [{:?}]", _user_from_url, user.to_string(), _cred);
+    let _cred = match std::env::var("GIT_CREDENTIALS") {
+        Ok(cred) => match cred.as_str() {
+            "USERNAME"              => git2::CredentialType::USERNAME,
+            "USER_PASS_PLAINTEXT"   => git2::CredentialType::USER_PASS_PLAINTEXT,
+            "SSH_KEY"               => git2::CredentialType::SSH_KEY,
+            _ => _cred,
+        }
+        _ => _cred,
+    };
 
+    debug!(r#"Git Credentials Callback:
+        User: {}
+        User From URL: {:?}
+        Credential Type: {:?}
+    "#, user, _user_from_url, _cred);
+
+
+    // Handle the username.
     if _cred.contains(git2::CredentialType::USERNAME) {
+        debug!("Authenticate with user {}", user);
         return git2::Cred::username(user);
     }
 
-    match std::env::var("GIT_SSH_KEY") {
-        Ok(private_key) => {
-            debug!("Authenticate with user {} and private key located in {}", user, private_key);
+    // Handle the user and password.
+    if _cred.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
+        debug!("Authenticate with user {} and password", user);
+        // Check if the user and token alias exists to set the git credential environments.
+        //  We handle alias environments for the use to redirect the user and token to the corrent environment variables, 
+        //  like GITHUB_USER and GITHUB_TOKEN; which are provided by Github. Since we are not specific for Github, we must use an alias.
+        if let Ok(user) = std::env::var("GIT_ALIAS_USER") {
+            std::env::set_var("GIT_USER", std::env::var(user.clone()).unwrap_or_else(|_| panic!("Missing Git Alias User output value: {}", user.clone())));
+            debug!("GIT_ALIAS_USER was Set: {}", user);
+        }
+        if let Ok(token) = std::env::var("GIT_ALIAS_TOKEN") {
+            std::env::set_var("GIT_TOKEN", std::env::var(token.clone()).unwrap_or_else(|_| panic!("Missing Git Alias Token output value: {}", token.clone())));
+            debug!("GIT_ALIAS_TOKEN was Set: {}", token);
+        }
+
+        let username = std::env::var("GIT_USER").expect("Missing Git User");
+        let password = std::env::var("GIT_TOKEN").expect("Missing Git Token");
+
+        debug!("Username: {}", username);
+        debug!("Password: {}", password);
+
+        // Login with the user and token.
+        return git2::Cred::userpass_plaintext(
+            username.as_str(),
+            password.as_str()
+        );
+    }
+
+    // Handle the user and private key either via path or in-memory.
+    match std::env::var("GIT_SSH_KEY_PATH") {
+        Ok(private_key_path) => {
+            debug!("Authenticate with user {} and private key located in {}", user, private_key_path);
 
             // Check if the public key exists.
-            let public_key = private_key.clone() + ".pub";
+            let public_key = private_key_path.clone() + ".pub";
             let public_key_path = if !std::path::Path::new(&public_key).exists() 
             {
                 Some(std::path::Path::new(&public_key))
@@ -242,13 +387,29 @@ pub fn git_credentials_callback(
             };
 
             // Check if the private key exists.
-            if !std::path::Path::new(&private_key).exists() 
+            if !std::path::Path::new(&private_key_path).exists() 
             {
-                return Err(git2::Error::from_str(format!("GIT_SSH_KEY path does not exist: {}", private_key).as_str()));
+                return Err(git2::Error::from_str(format!("GIT_SSH_KEY path does not exist: {}", private_key_path).as_str()));
             }
             
-            git2::Cred::ssh_key(user, public_key_path, std::path::Path::new(&private_key), None)
+            git2::Cred::ssh_key(user, public_key_path, std::path::Path::new(&private_key_path), None)
         },
-        _ => Err(git2::Error::from_str("unable to get private key from GIT_SSH_KEY")),
+        _ => match std::env::var("GIT_SSH_KEY") {
+            Ok(private_key) => {
+                debug!("Authenticate with user {} and private key in memory", user);
+    
+                // Check if the public key exists.
+                let public_key = std::env::var("GIT_SSH_KEY_PUBLIC");
+                let public_key = match public_key {
+                    Ok(public_key) => Some(public_key),
+                    _ => None,
+                };
+                let public_key = public_key.as_deref();
+                
+                git2::Cred::ssh_key_from_memory(user, public_key, &private_key, None)
+            },
+            _ => Err(git2::Error::from_str("unable to get private key from GIT_SSH_KEY")),
+        },
     }
+    
 }

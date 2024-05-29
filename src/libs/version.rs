@@ -1,12 +1,12 @@
 use std::fmt::Display;
 
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(serde::Deserialize, Debug, PartialEq, Eq)]
 pub enum CommitType
 {
-    MAJOR,
-    MINOR,
-    PATCH,
+    Major,
+    Minor,
+    Patch,
 }
 
 #[derive(serde::Deserialize, Debug, Clone)]
@@ -21,6 +21,14 @@ pub struct SemanticVersion
     suffix: Option<String>,
 }
 
+impl PartialEq for SemanticVersion
+{
+    fn eq(&self, other: &Self) -> bool
+    {
+        self.major == other.major && self.minor == other.minor && self.patch == other.patch
+    }
+}
+
 impl SemanticVersion
 {
     // Ctor
@@ -32,11 +40,15 @@ impl SemanticVersion
     // Increment
     pub fn increment(&mut self, commit_type: &CommitType)
     {
+        self.increment_by(commit_type, 1)
+    }
+    pub fn increment_by(&mut self, commit_type: &CommitType, value: u32)
+    {
         match commit_type
         {
-            CommitType::MAJOR => { self.major += 1; self.minor = 0; self.patch = 0; },
-            CommitType::MINOR => { self.minor += 1; self.patch = 0; },
-            CommitType::PATCH => self.patch += 1,
+            CommitType::Major => { self.major += value; self.minor = 0; self.patch = 0; },
+            CommitType::Minor => { self.minor += value; self.patch = 0; },
+            CommitType::Patch => self.patch += value,
         }
     }
 
@@ -51,7 +63,7 @@ impl SemanticVersion
         let version_part_index = if parts.len() > 1 { 1 } else { 0 };
 
         let version_parts = parts[version_part_index].split('.').collect::<Vec<&str>>();
-        if version_parts.len() > 0
+        if !version_parts.is_empty()
         {
             major = version_parts[0].parse::<u32>().unwrap();
         }
