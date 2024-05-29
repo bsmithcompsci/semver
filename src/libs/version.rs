@@ -21,6 +21,14 @@ pub struct SemanticVersion
     suffix: Option<String>,
 }
 
+impl PartialEq for SemanticVersion
+{
+    fn eq(&self, other: &Self) -> bool
+    {
+        self.major == other.major && self.minor == other.minor && self.patch == other.patch
+    }
+}
+
 impl SemanticVersion
 {
     // Ctor
@@ -32,11 +40,15 @@ impl SemanticVersion
     // Increment
     pub fn increment(&mut self, commit_type: &CommitType)
     {
+        self.increment_by(commit_type, 1)
+    }
+    pub fn increment_by(&mut self, commit_type: &CommitType, value: u32)
+    {
         match commit_type
         {
-            CommitType::MAJOR => { self.major += 1; self.minor = 0; self.patch = 0; },
-            CommitType::MINOR => { self.minor += 1; self.patch = 0; },
-            CommitType::PATCH => self.patch += 1,
+            CommitType::MAJOR => { self.major += value; self.minor = 0; self.patch = 0; },
+            CommitType::MINOR => { self.minor += value; self.patch = 0; },
+            CommitType::PATCH => self.patch += value,
         }
     }
 

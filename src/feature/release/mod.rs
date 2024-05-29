@@ -2,7 +2,7 @@ use crate::libs::release::Release;
 
 pub mod github;
 
-pub async fn create(args: crate::Args, repository_type: &str, release: &Release, tag_oid: &git2::Oid, repository: &git2::Repository) -> Result<(), &'static str>
+pub async fn create(args: crate::Args, repository_type: &str, release: &Release, tag_oid: &git2::Oid, repository: &git2::Repository) -> Result<Option<octocrab::models::repos::Release>, &'static str>
 {
     match repository_type
     {

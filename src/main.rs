@@ -11,7 +11,7 @@ mod feature;
 use libs::data::*;
 use maplit::hashmap;
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Default)]
 #[command(version, about, long_about = None)]
 struct Args {
     #[arg(short, long, help = "Path to the configuration file. Supports: .json", default_value = ".semver.json")]

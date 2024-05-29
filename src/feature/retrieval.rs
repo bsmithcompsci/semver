@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use log::{debug, error, info, warn};
 
-use crate::{libs::{release::{Release, ReleaseContributor, ReleaseType}, version::{CommitType, SemanticVersion}}, SemverData};
+use crate::{libs::{release::{Release, ReleaseContributor, ReleaseType}, version::{CommitType, SemanticVersion}}, SemverData, SemverDataCommits, SemverDataTagging};
 
 pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repository) -> Vec<Release>
 {
@@ -316,4 +316,46 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
     }
 
     releases
+}
+
+#[test]
+fn test_get()
+{
+    use crate::libs::version::SemanticVersion;
+    use crate::libs::release::ReleaseType;
+    use crate::SemverData;
+    
+    let _ = env_logger::Builder::new()
+        .filter_level(log::LevelFilter::Debug)
+        .try_init();
+
+    let args = crate::Args::default();
+    let semver_data = SemverData {
+        branches: vec![],
+        commits: SemverDataCommits 
+        {
+            case_sensitive: false,
+            default: "PATCH".to_string(),
+            map: Default::default(),
+            release: vec![],
+            prerelease: vec![],
+        
+        },
+        tagging: SemverDataTagging {
+            supported_repositories: Default::default(),
+        },
+    };
+    let repository = git2::Repository::open(".").unwrap();
+
+    let releases = get(args, &semver_data, &repository);
+
+    if releases.len() > 0
+    {
+        for release in releases.iter()
+        {
+            assert_ne!(release.version, SemanticVersion::new(), "Version is not set: {:?}", release);
+            assert_ne!(release.tag, ReleaseType::None, "Tag is not set: {:?}", release);
+            assert_ne!(release.contributors.len(), 0, "Contributors is not set: {:?}", release);
+        }
+    }
 }
