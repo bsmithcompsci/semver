@@ -213,7 +213,30 @@ async fn main() {
     }
 }
 
-pub fn git_credentials_callback(
+
+/// Git Credentials Callback
+/// 
+/// This function is used to handle the Git Credentials Callback for the Git2 library.
+/// 
+/// ```rust
+/// fn main() {
+///     let user = "git";
+///     let user_from_url = Some("git");
+///     let cred = git2::CredentialType::USERNAME;
+/// 
+///     let result = crate::git_credentials_callback(user, user_from_url, cred);
+/// 
+///     match result {
+///         Ok(cred) => {
+///             println!("Cred: {:?}", cred);
+///         },
+///         Err(error) => {
+///             println!("Error: {:?}", error);
+///         }
+///     }
+///}
+/// ```
+pub(crate) fn git_credentials_callback(
     _user: &str,
     _user_from_url: Option<&str>,
     _cred: git2::CredentialType,
