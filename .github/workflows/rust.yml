@@ -77,3 +77,8 @@ jobs:
         push: true
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/flex-vers:latest, ${{ secrets.DOCKERHUB_USERNAME }}/flex-vers:${{ github.sha }}
 
+    # Run Flex-Vers
+    - name: Flex-Vers
+      uses: bsmithcompsci/semver@v1
+            
+
