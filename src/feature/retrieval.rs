@@ -33,16 +33,6 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
         debug!("Tag: {} - {}", commit_id, tag.name().unwrap());
     }
 
-    // Get the latest Tag
-    let mut version = SemanticVersion::new();
-    let latest_tag = commit_tags.iter().next();
-    if let Some((_, tag)) = latest_tag 
-    {
-        let tag_name = tag.name().unwrap();
-        info!("Latest Tag: {}", tag_name);
-        version = SemanticVersion::parse(tag_name);
-    }
-
     // Get all Commits
     let mut revwalk = repository.revwalk().unwrap();
     revwalk.push_head().unwrap();
@@ -59,6 +49,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
     commits.reverse();
 
     // Cleanup commits that are within a tag.
+    let mut version = SemanticVersion::new();
     {
         let last_commit_index = {
             let mut commit_tag_index = 0;
@@ -71,8 +62,19 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             }
             commit_tag_index
         };
+
+        // Get the last commit that is not tagged.
+        let last_commit = commits[last_commit_index-1].clone();
+        if let Some(tag) = commit_tags.get(&last_commit.id())
+        {
+            let tag_version = tag.name().unwrap();
+            debug!("Last Tag: {} - {}", last_commit.id(), tag_version);
+            version = SemanticVersion::parse(tag_version);
+        }
+
         commits = commits[last_commit_index..].to_vec();
     }
+    let version = version; // De-mut the variable.
 
     info!("Commits: {}", commits.len());
 
