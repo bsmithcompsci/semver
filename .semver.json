@@ -19,24 +19,31 @@
         {
             "name": "main",
             "increment": [
-                "MAJOR"
+                "MAJOR",
+                "MINOR",
+                "PATCH"
             ]
         },
         {
             "name": "develop",
             "prerelease": true,
             "increment": [
-                "MINOR"
+                "MINOR",
+                "PATCH"
             ]
         },
         {
             "name": "feature/*",
-            "prerelease": true
+            "prerelease": true,
+            "increment": [
+                "PATCH"
+            ]
         },
         {
             "name": "release/*",
             "increment": [
-                "MINOR"
+                "MINOR",
+                "PATCH"
             ]
         },
         {
