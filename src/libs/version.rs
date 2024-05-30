@@ -11,12 +11,16 @@ pub enum CommitType
     Patch,
 }
 
-#[derive(serde::Deserialize, Debug, Clone)]
+#[derive(serde::Deserialize, Debug, Clone, Default)]
 pub struct SemanticVersion
 {
     major: u32,
     minor: u32,
     patch: u32,
+
+    delta_major: u32,
+    delta_minor: u32,
+    delta_patch: u32,
 
     // Prefix & Suffix
     prefix: Option<String>,
@@ -36,8 +40,18 @@ impl SemanticVersion
     // Ctor
     pub fn new() -> SemanticVersion
     {
-        SemanticVersion { major: 0, minor: 0, patch: 0, prefix: None, suffix: None }
+        SemanticVersion { major: 0, minor: 0, patch: 0, delta_major: 0, delta_minor: 0, delta_patch: 0, prefix: None, suffix: None }
     }
+
+    pub fn from(major: u32, minor: u32, patch: u32) -> SemanticVersion
+    {
+        SemanticVersion { major, minor, patch, delta_major: 0, delta_minor: 0, delta_patch: 0, prefix: None, suffix: None }
+    }
+
+    // getters
+    pub fn get_major(&self) -> u32 { self.major }
+    pub fn get_minor(&self) -> u32 { self.minor }
+    pub fn get_patch(&self) -> u32 { self.patch }
 
     // Increment
     pub fn increment(&mut self, commit_type: &CommitType)
@@ -48,11 +62,15 @@ impl SemanticVersion
     {
         match commit_type
         {
-            CommitType::Major => { self.major += value; self.minor = 0; self.patch = 0; },
-            CommitType::Minor => { self.minor += value; self.patch = 0; },
-            CommitType::Patch => self.patch += value,
+            CommitType::Major => { self.major += value; self.delta_major; self.minor = 0; self.delta_minor = 0; self.patch = 0; },
+            CommitType::Minor => { self.minor += value; self.delta_major += value; self.patch = 0; self.delta_patch = 0; },
+            CommitType::Patch => { self.patch += value; self.delta_patch += value; },
         }
     }
+
+    pub fn get_delta_major(&self) -> u32 { self.delta_major }
+    pub fn get_delta_minor(&self) -> u32 { self.delta_minor }
+    pub fn get_delta_patch(&self) -> u32 { self.delta_patch }
 
     // Parse
     pub fn parse(version: &str) -> SemanticVersion
@@ -92,14 +110,25 @@ impl SemanticVersion
         let prefix = if parts.len() > 1 { Some(parts[0].to_string()) } else { None };
         let suffix = if parts.len() > 2 { Some(parts[2].to_string()) } else { None };
         
-        SemanticVersion { major, minor, patch, prefix, suffix }
+        SemanticVersion { major, minor, patch, delta_major: 0, delta_minor: 0, delta_patch: 0, prefix, suffix }
     }
 }
 
 impl Display for SemanticVersion
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut version = format!("{}.{}.{}", self.major, self.minor, self.patch);
+        let mut version = self.major.to_string();
+        
+        // x[.x] or x[.x[.x]]; Optional minor and patch parts.
+        if self.minor != u32::MAX
+        {
+            version = format!("{}.{}", version, self.minor);
+        }
+        if self.patch != u32::MAX
+        {
+            version = format!("{}.{}", version, self.patch);
+        }
+
         // [prefix-]x.x.x
         if let Some(prefix) = &self.prefix
         {

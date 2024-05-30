@@ -92,9 +92,14 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
     for commit in commits.iter() 
     {
         let mut release_type;
+        let should_major_release;
+        let should_minor_release;
         if commits.last().unwrap().id() == commit.id()
         {
-            if args.force_release
+            should_major_release = args.keep_major_up_to_date && semver_data.branches.iter().any(|x| x.name == branch && x.increment.is_some() && x.increment.clone().unwrap().contains(&"MAJOR".to_string()));
+            should_minor_release = args.keep_minor_up_to_date && semver_data.branches.iter().any(|x| x.name == branch && x.increment.is_some() && x.increment.clone().unwrap().contains(&"MINOR".to_string()));
+
+            if args.force_release || (should_major_release || should_minor_release)
             {
                 release_type = ReleaseType::Release;
             }
@@ -109,6 +114,9 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
         }
         else
         {
+            should_major_release = false;
+            should_minor_release = false;
+
             release_type = ReleaseType::None;
         }
 
@@ -233,6 +241,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
         );
 
         let mut can_increment = release_type != ReleaseType::None;
+        // Check the branch rules, and verify that we can increment in the way we like to.
         if branch_rules.is_some()
         {
             let branch_rules = branch_rules.unwrap();
@@ -270,6 +279,34 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             release_version.increment(&commit_type);
         }
 
+        if should_major_release
+        {
+            debug!("Major Release: {}", release_version.get_major());
+            releases.push(Release { 
+                commit: commit_id,
+                tag: ReleaseType::Release, 
+                version: SemanticVersion::from(release_version.get_major(), u32::MAX, u32::MAX),
+                majors: release_majors.clone(), 
+                minors: release_minors.clone(), 
+                patches: release_patches.clone(), 
+                contributors: release_contributors.clone() 
+            });
+        }
+
+        if should_minor_release && release_version.get_minor() > 0
+        {
+            debug!("Minor Release: {}.{}", release_version.get_major(), release_version.get_minor());
+            releases.push(Release { 
+                commit: commit_id,
+                tag: ReleaseType::Release, 
+                version: SemanticVersion::from(release_version.get_major(), release_version.get_minor(), u32::MAX),
+                majors: release_majors.clone(), 
+                minors: release_minors.clone(), 
+                patches: release_patches.clone(), 
+                contributors: release_contributors.clone() 
+            });
+        }
+
         // We detected a new release, so we need to create a new release.
         if can_increment
         {
@@ -278,6 +315,7 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             {
                 releases.push(current_release.clone().unwrap());
             }
+
 
             // Create a new release.
             //  Piece together the release data to catchup.
@@ -298,6 +336,8 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
             release_contributors.clear();
             
             debug!("Switching Releases:\n\tOld - {:?}\n\tNew - {:?}", current_release, release.clone());
+            debug!("Delta Version: {}.{}.{}", release_version.get_delta_major(), release_version.get_delta_minor(), release_version.get_delta_patch());
+            release_version = SemanticVersion::from(release_version.get_major(), release_version.get_minor(), release_version.get_patch());
             current_release = Some(release);
         }
 
