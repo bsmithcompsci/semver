@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use log::debug;
+
 
 #[derive(serde::Deserialize, Debug, PartialEq, Eq)]
 pub enum CommitType
@@ -55,6 +57,8 @@ impl SemanticVersion
     // Parse
     pub fn parse(version: &str) -> SemanticVersion
     {
+        debug!("Parsing version: {}", version);
+
         let mut major = 0;
         let mut minor = 0;
         let mut patch = 0;
@@ -65,15 +69,24 @@ impl SemanticVersion
         let version_parts = parts[version_part_index].split('.').collect::<Vec<&str>>();
         if !version_parts.is_empty()
         {
-            major = version_parts[0].parse::<u32>().unwrap();
+            // Remove any characters on major part and only leave digits.
+            let major_part = version_parts[0].chars().filter(|c| c.is_digit(10)).collect::<String>();
+            debug!("Major: {} [{}]", major_part, version_parts[0]);
+            major = major_part.parse::<u32>().unwrap();
         }
         if version_parts.len() > 1
         {
-            minor = version_parts[1].parse::<u32>().unwrap();
+            // Remove any characters on minor part.
+            let minor_part = version_parts[1].chars().filter(|c| c.is_digit(10)).collect::<String>();
+            debug!("Minor: {} [{}]", minor_part, version_parts[1]);
+            minor = minor_part.parse::<u32>().unwrap();
         }
         if version_parts.len() > 2
         {
-            patch = version_parts[2].parse::<u32>().unwrap();
+            // Remove any characters on patch part.
+            let patch_part = version_parts[2].chars().filter(|c| c.is_digit(10)).collect::<String>();
+            debug!("Patch: {} [{}]", patch_part, version_parts[2]);
+            patch = patch_part.parse::<u32>().unwrap();
         }
 
         let prefix = if parts.len() > 1 { Some(parts[0].to_string()) } else { None };
