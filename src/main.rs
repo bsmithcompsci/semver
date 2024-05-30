@@ -1,7 +1,6 @@
 #![cfg_attr(feature = "strict", deny(missing_docs))]
 #![cfg_attr(feature = "strict", deny(warnings))]
 #![allow(dead_code)]
-
 //! # Semantic Versioning
 //! 
 //! This is a simple tool to help automate the process of creating semantic versioning tags and releases for your repository.
