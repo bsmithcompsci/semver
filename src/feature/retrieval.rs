@@ -13,7 +13,9 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
 
     // Get all Tags
     let mut commit_tags = HashMap::<git2::Oid, git2::Tag>::new();
-    let tags = repository.tag_names(Some("*")).unwrap();
+    let tags = repository.tag_names(None).unwrap();
+    
+    // Sort Tags.
     for tag_name in tags.iter() 
     {
         let obj = repository.revparse_single(tag_name.unwrap()).unwrap();
@@ -25,6 +27,13 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
         }
     }
 
+    // Print all Tags
+    for (commit_id, tag) in commit_tags.iter() 
+    {
+        debug!("Tag: {} - {}", commit_id, tag.name().unwrap());
+    }
+
+    // Get the latest Tag
     let mut version = SemanticVersion::new();
     let latest_tag = commit_tags.iter().next();
     if let Some((_, tag)) = latest_tag 
@@ -40,6 +49,12 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
     let mut commits: Vec<git2::Commit> = revwalk
         .map(|id| repository.find_commit(id.unwrap()).unwrap())
         .collect();
+
+    // Print all Commits
+    for commit in commits.iter() 
+    {
+        debug!("Commit: {} - {}", commit.id(), commit.message().unwrap());
+    }
 
     commits.reverse();
 
@@ -77,11 +92,11 @@ pub fn get(args: crate::Args, semver_data: &SemverData, repository: &git2::Repos
         let mut release_type;
         if commits.last().unwrap().id() == commit.id()
         {
-            if args.release
+            if args.force_release
             {
                 release_type = ReleaseType::Release;
             }
-            else if args.prerelease
+            else if args.force_prerelease
             {
                 release_type = ReleaseType::PreRelease;
             }

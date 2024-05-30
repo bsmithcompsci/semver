@@ -100,9 +100,9 @@ struct Args {
     override_repository_type: Option<String>,
 
     #[arg(long, action, help = "Force the latest commit to be a release.", default_value = "false")]
-    release: bool,
+    force_release: bool,
     #[arg(long, action, help = "Force the latest commit to be a pre-release", default_value = "false")]
-    prerelease: bool,
+    force_prerelease: bool,
 
     #[arg(long, action, help = "Do not act on anything, but give the outcome if it would.", default_value = "false")]
     dry_run: bool,
@@ -112,6 +112,12 @@ struct Args {
 
     #[arg(long, action, help = "Skip any commits that are not formatted under the https://semver.org/ format rules.", default_value = "false")]
     skip_non_formatted: bool,
+
+    #[arg(long, action, help = "Keeps the major version up to date with the latest of this set version.", default_value = "false")]
+    keep_major_up_to_date: bool,
+
+    #[arg(long, action, help = "Keeps the minor version up to date with the latest of this set version.", default_value = "false")]
+    keep_minor_up_to_date: bool,
 
     #[arg(long, action, help = "Exit with an Error Code when encountering any errors.", default_value = "true")]
     exit_on_error: bool,
@@ -129,11 +135,13 @@ impl Clone for Args
             input_file: self.input_file.clone(),
             repository: self.repository.clone(),
             override_repository_type: self.override_repository_type.clone(),
-            release: self.release,
-            prerelease: self.prerelease,
+            force_release: self.force_release,
+            force_prerelease: self.force_prerelease,
             dry_run: self.dry_run,
             always_increment: self.always_increment,
             skip_non_formatted: self.skip_non_formatted,
+            keep_major_up_to_date: self.keep_major_up_to_date,
+            keep_minor_up_to_date: self.keep_minor_up_to_date,
             exit_on_error: self.exit_on_error,
             credentials: self.credentials.clone(),
         }

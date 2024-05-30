@@ -18,10 +18,15 @@ inputs:
     required: false
     default: "false"
     type: "boolean"
-  keep_root_version_up_to_date:
+  keep_major_version_up_to_date:
     description: "Keep root version up to date"
     required: false
     default: "false"
+  keep_minor_version_up_to_date:
+    description: "Keep root version up to date"
+    required: false
+    default: "false"
+    type: "boolean"
     type: "boolean"
   lint:
     description: "Lint the project"
