@@ -139,6 +139,6 @@ impl Display for SemanticVersion
         {
             version = format!("{}-{}", version, suffix);
         }
-        write!(f, "{}", version)
+        write!(f, "v{}", version)
     }
 }

@@ -49,7 +49,7 @@ pub fn tag(args: crate::Args, release: &Release, commit: &git2::Commit, reposito
         tag_message.push_str("## Credits:\n");
         for contributor in release.contributors.iter() 
         {
-            tag_message.push_str(format!("* {} <{}>\n", contributor.name, contributor.email).as_str());
+            tag_message.push_str(format!("* {}\n", contributor.name).as_str());
         }
 
         tag_message.push('\n');

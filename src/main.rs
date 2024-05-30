@@ -1,5 +1,6 @@
 #![cfg_attr(feature = "strict", deny(missing_docs))]
 #![cfg_attr(feature = "strict", deny(warnings))]
+#![allow(dead_code)]
 
 //! # Semantic Versioning
 //! 
