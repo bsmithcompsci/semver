@@ -17,24 +17,27 @@
     },
     "branches": [
         {
-            "name": "master",
+            "name": "main",
             "increment": [
                 "MAJOR"
             ]
         },
         {
             "name": "develop",
-            "prerelease": true
-        },
-        {
-            "name": "feature/*",
             "prerelease": true,
             "increment": [
                 "MINOR"
             ]
         },
         {
-            "name": "release/*"
+            "name": "feature/*",
+            "prerelease": true
+        },
+        {
+            "name": "release/*",
+            "increment": [
+                "MINOR"
+            ]
         },
         {
             "name": "fix/*",
